@@ -1,4 +1,4 @@
-# Optimizer — Domain Knowledge Agent with Local Retrieval
+# Lore — Domain Knowledge Agent with Local Retrieval
 
 A self-contained knowledge system that can be dropped into any project. Provides semantic search over a local knowledge base, web research via SearXNG, structured answer synthesis, and a knowledge improvement loop — all accessible to Claude Code and VS Code Copilot through MCP.
 

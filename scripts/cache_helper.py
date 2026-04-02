@@ -1,12 +1,12 @@
-"""URL cache helper for the research harness.
+"""URL cache helper for the research pipeline.
 
 Stores crawled URL content as Markdown files.
 Key: SHA-256 of the URL. TTL: 24 hours by default.
 
 Cache directory resolution order:
-  1. HARNESS_CACHE_DIR environment variable
+  1. LORE_CACHE_DIR environment variable
   2. <project_root>/.cache/
-  3. /tmp/harness_cache/ (fallback)
+  3. /tmp/lore_cache/ (fallback)
 """
 
 import hashlib
@@ -18,14 +18,14 @@ from typing import Optional
 
 
 def _resolve_cache_dir() -> Path:
-    if env := os.environ.get("HARNESS_CACHE_DIR"):
+    if env := os.environ.get("LORE_CACHE_DIR"):
         return Path(env)
     # Walk up from this script to find project root (contains .github/)
     here = Path(__file__).resolve().parent
     for ancestor in [here.parent, *here.parent.parents]:
         if (ancestor / ".github").is_dir():
             return ancestor / ".cache"
-    return Path("/tmp/harness_cache")
+    return Path("/tmp/lore_cache")
 
 
 CACHE_DIR = _resolve_cache_dir()

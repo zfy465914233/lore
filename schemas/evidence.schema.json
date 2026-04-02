@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Evidence",
-  "description": "Unified evidence object used across all agents and skills in the research harness.",
+  "description": "Unified evidence object used across all agents and skills in the research pipeline.",
   "type": "object",
   "required": ["query", "source_type", "url", "title", "summary", "retrieved_at", "retrieval_status"],
   "properties": {

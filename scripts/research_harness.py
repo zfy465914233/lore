@@ -236,7 +236,7 @@ def search_searxng(query: str) -> list[dict[str, Any]]:
     request = Request(
         url,
         headers={
-            "User-Agent": "optimizer-research-harness/0.1",
+            "User-Agent": "lore-research/0.1",
             "X-Forwarded-For": "127.0.0.1",
         }
     )
@@ -264,7 +264,7 @@ def search_openalex(query: str) -> list[dict[str, Any]]:
     url = f"https://api.openalex.org/works?search={quote_plus(query)}"
     request = Request(
         url,
-        headers={"User-Agent": "optimizer-research-harness/0.1 (mailto:harness@example.com)"}
+        headers={"User-Agent": "lore-research/0.1 (mailto:lore@example.com)"}
     )
 
     def _do_search() -> list[dict[str, Any]]:
@@ -295,7 +295,7 @@ def search_semanticscholar(query: str) -> list[dict[str, Any]]:
     url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={quote_plus(query)}&limit=5&fields=title,url,abstract,year"
     request = Request(
         url,
-        headers={"User-Agent": "optimizer-research-harness/0.1"}
+        headers={"User-Agent": "lore-research/0.1"}
     )
 
     def _do_search() -> list[dict[str, Any]]:
@@ -402,7 +402,7 @@ def fetch_content(url: str) -> dict[str, str]:
     request = Request(
         url,
         headers={
-            "User-Agent": "Mozilla/5.0 (compatible; optimizer-research-harness/0.1)",
+            "User-Agent": "Mozilla/5.0 (compatible; lore-research/0.1)",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         },
     )

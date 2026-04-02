@@ -2,7 +2,7 @@
 
 ## Project Context
 
-This is an agent engineering harness for algorithm research, experiment design, and LLM tooling exploration. The user is an algorithm engineer working in operations research, optimization, and machine learning (e.g. xgboost).
+This is a domain knowledge agent for algorithm research, experiment design, and LLM tooling exploration.
 
 ## Core Constraints
 

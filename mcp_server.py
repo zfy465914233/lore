@@ -51,7 +51,7 @@ DEFAULT_INDEX = ROOT / "indexes" / "local" / "index.json"
 
 try:
     from fastmcp import FastMCP
-    mcp = FastMCP("optimizer")
+    mcp = FastMCP("lore")
     tool = mcp.tool
 except ImportError:
     # Allow running without fastmcp — decorators become no-ops
