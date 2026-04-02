@@ -12,6 +12,7 @@ source_refs:
 confidence: draft
 updated_at: 2026-04-01
 origin: local_seed
+review_status: reviewed
 ---
 
 ## Goal

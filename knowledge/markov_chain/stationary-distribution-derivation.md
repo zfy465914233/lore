@@ -12,6 +12,7 @@ source_refs:
 confidence: confirmed
 updated_at: 2026-04-01
 origin: local_seed
+review_status: trusted
 prerequisites:
   - markov-chain-definition
   - transition-matrix

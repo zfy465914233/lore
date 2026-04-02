@@ -17,6 +17,7 @@ source_refs:
 confidence: draft
 updated_at: 2026-04-02
 origin: manual_web_research
+review_status: draft
 ---
 
 ## Compared Items
