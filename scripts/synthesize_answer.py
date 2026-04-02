@@ -1,0 +1,239 @@
+"""Synthesize a structured answer from an evidence-driven prompt bundle.
+
+This module closes the biggest gap in the system: it takes the rendered prompt
+bundle (system + user prompt from render_answer_bundle.py) and calls an LLM to
+produce a structured answer with grounded claims, inferences, uncertainty, and
+citation tracking.
+
+LLM backend configuration (environment variables):
+  LLM_API_URL  – base URL for OpenAI-compatible chat completions endpoint.
+                 Default: https://api.openai.com/v1
+  LLM_API_KEY  – API key. Required in production; omitted for local/offline.
+  LLM_MODEL    – model identifier. Default: gpt-4o-mini
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from pathlib import Path
+from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.parse import urljoin
+from urllib.request import Request, urlopen
+
+
+LLM_API_URL = os.environ.get("LLM_API_URL", "https://api.openai.com/v1")
+LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
+LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
+LLM_TIMEOUT = int(os.environ.get("LLM_TIMEOUT", "60"))
+
+ANSWER_SYSTEM_PROMPT = (
+    "You are a domain research assistant. Produce a structured JSON answer "
+    "from the provided evidence. You MUST respond with valid JSON only.\n\n"
+    "Required JSON schema:\n"
+    "{\n"
+    '  "answer": "concise direct answer to the question",\n'
+    '  "supporting_claims": [\n'
+    '    {"claim": "...", "evidence_ids": ["id1"], "confidence": "high|medium|low"}\n'
+    "  ],\n"
+    '  "inferences": ["..."],\n'
+    '  "uncertainty": ["..."],\n'
+    '  "missing_evidence": ["..."],\n'
+    '  "suggested_next_steps": ["..."]\n'
+    "}\n\n"
+    "Rules:\n"
+    "- Every factual claim MUST reference at least one evidence_id from the context.\n"
+    "- If evidence is weak or absent, keep the answer narrow and explicitly tentative.\n"
+    "- Do NOT fabricate evidence IDs that are not in the context.\n"
+    "- Separate what the evidence directly says (supporting_claims) from your reasoning (inferences).\n"
+    "- List what is unknown or uncertain under uncertainty.\n"
+    "- If critical information is missing, describe it under missing_evidence.\n"
+)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Synthesize a structured answer from a rendered prompt bundle.",
+    )
+    parser.add_argument(
+        "--prompt-bundle",
+        required=True,
+        help="Path to prompt-bundle JSON from render_answer_bundle, or '-' for stdin.",
+    )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help=f"LLM model. Default: {LLM_MODEL}",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional output file path. Defaults to stdout.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the API request payload without calling the LLM.",
+    )
+    return parser.parse_args()
+
+
+def load_prompt_bundle(path_or_stdin: str) -> dict[str, Any]:
+    if path_or_stdin == "-":
+        return json.loads(sys.stdin.read())
+    return json.loads(Path(path_or_stdin).read_text(encoding="utf-8"))
+
+
+def build_chat_request(prompt_bundle: dict[str, Any], model: str) -> dict[str, Any]:
+    system_prompt = prompt_bundle.get("system_prompt", "")
+    user_prompt = prompt_bundle.get("user_prompt", "")
+    return {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": ANSWER_SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "temperature": 0.2,
+        "max_tokens": 2048,
+    }
+
+
+def call_llm(request_payload: dict[str, Any]) -> dict[str, Any]:
+    """Call an OpenAI-compatible chat completions endpoint."""
+    url = LLM_API_URL.rstrip("/") + "/chat/completions"
+    headers = {"Content-Type": "application/json"}
+    if LLM_API_KEY:
+        headers["Authorization"] = f"Bearer {LLM_API_KEY}"
+
+    body = json.dumps(request_payload).encode("utf-8")
+    req = Request(url, data=body, headers=headers, method="POST")
+
+    try:
+        with urlopen(req, timeout=LLM_TIMEOUT) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
+        raise RuntimeError(
+            f"LLM API returned HTTP {exc.code}: {detail}"
+        ) from exc
+    except (URLError, OSError) as exc:
+        raise RuntimeError(f"LLM API request failed: {exc}") from exc
+
+    choices = data.get("choices", [])
+    if not choices:
+        raise RuntimeError(f"LLM API returned no choices: {json.dumps(data)}")
+
+    content = choices[0].get("message", {}).get("content", "")
+    usage = data.get("usage", {})
+    return {
+        "raw_content": content,
+        "model": data.get("model", request_payload["model"]),
+        "usage": {
+            "prompt_tokens": usage.get("prompt_tokens", 0),
+            "completion_tokens": usage.get("completion_tokens", 0),
+            "total_tokens": usage.get("total_tokens", 0),
+        },
+    }
+
+
+def parse_answer(raw_content: str) -> dict[str, Any]:
+    """Extract structured answer JSON from the LLM response.
+
+    The LLM may wrap JSON in markdown code fences or add preamble text.
+    This function handles both cases.
+    """
+    text = raw_content.strip()
+
+    # Strip markdown code fences if present
+    if text.startswith("```"):
+        lines = text.split("\n")
+        # Remove first line (```json or ```) and last line (```)
+        lines = [l for l in lines if not l.strip().startswith("```")]
+        text = "\n".join(lines).strip()
+
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        # Try to find JSON object within the text
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start >= 0 and end > start:
+            parsed = json.loads(text[start:end])
+        else:
+            return {
+                "answer": text,
+                "supporting_claims": [],
+                "inferences": [],
+                "uncertainty": ["LLM response was not valid JSON; raw text returned."],
+                "missing_evidence": [],
+                "suggested_next_steps": [],
+                "_parse_error": True,
+            }
+
+    return {
+        "answer": parsed.get("answer", ""),
+        "supporting_claims": parsed.get("supporting_claims", []),
+        "inferences": parsed.get("inferences", []),
+        "uncertainty": parsed.get("uncertainty", []),
+        "missing_evidence": parsed.get("missing_evidence", []),
+        "suggested_next_steps": parsed.get("suggested_next_steps", []),
+    }
+
+
+def build_synthesis_output(
+    answer: dict[str, Any],
+    prompt_bundle: dict[str, Any],
+    model: str,
+    usage: dict[str, int],
+) -> dict[str, Any]:
+    """Assemble the final synthesis output with metadata."""
+    return {
+        "query": prompt_bundle.get("metadata", {}).get("query", ""),
+        "route": prompt_bundle.get("metadata", {}).get("route", ""),
+        "answer": answer,
+        "citations": prompt_bundle.get("citations", []),
+        "synthesis_meta": {
+            "model": model,
+            "usage": usage,
+        },
+    }
+
+
+def synthesize(prompt_bundle: dict[str, Any], model: str, dry_run: bool = False) -> dict[str, Any]:
+    """Full synthesis pipeline: build request, call LLM, parse response."""
+    request_payload = build_chat_request(prompt_bundle, model)
+
+    if dry_run:
+        return {
+            "dry_run": True,
+            "request_payload": request_payload,
+        }
+
+    llm_response = call_llm(request_payload)
+    answer = parse_answer(llm_response["raw_content"])
+    return build_synthesis_output(answer, prompt_bundle, model, llm_response["usage"])
+
+
+def main() -> int:
+    args = parse_args()
+    model = args.model or LLM_MODEL
+    prompt_bundle = load_prompt_bundle(args.prompt_bundle)
+
+    output = synthesize(prompt_bundle, model, dry_run=args.dry_run)
+    text = json.dumps(output, ensure_ascii=False, indent=2)
+
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(text + "\n", encoding="utf-8")
+    else:
+        print(text)
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
