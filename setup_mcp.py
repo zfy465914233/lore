@@ -138,7 +138,8 @@ def setup_lore_config(parent_root: Path, lore_dir: Path) -> None:
     print(f"  Updated {config_path.relative_to(parent_root)}")
 
     # Create knowledge and indexes directories
-    (parent_root / "knowledge").mkdir(exist_ok=True)
+    knowledge_dir = parent_root / "knowledge"
+    knowledge_dir.mkdir(exist_ok=True)
     (parent_root / "indexes" / "local").mkdir(parents=True, exist_ok=True)
 
     # Copy example card if knowledge dir has no cards
