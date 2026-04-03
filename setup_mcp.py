@@ -16,11 +16,29 @@ This will:
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
 
 LORE_DIR_NAME = "lore-agent"
+
+
+def _detect_mcp_command() -> tuple[str, list[str]]:
+    """Detect the best way to run the MCP server.
+
+    Priority:
+      1. uv run --with fastmcp fastmcp run mcp_server.py  (uv available)
+      2. fastmcp run mcp_server.py                        (fastmcp pip-installed)
+      3. python -m fastmcp run mcp_server.py               (fastmcp in current venv)
+    """
+    if shutil.which("uv"):
+        return "uv", ["run", "--with", "fastmcp", "fastmcp", "run"]
+    if shutil.which("fastmcp"):
+        return "fastmcp", ["run"]
+    # Fallback: use current python with fastmcp as module
+    return sys.executable, ["-m", "fastmcp", "run"]
 
 
 def get_lore_dir() -> Path:
@@ -43,6 +61,7 @@ def setup_claude_code(parent_root: Path, lore_dir: Path) -> None:
     """Inject MCP config into .mcp.json for Claude Code."""
     mcp_path = parent_root / ".mcp.json"
     lore_relative = lore_dir.relative_to(parent_root)
+    cmd, base_args = _detect_mcp_command()
 
     if mcp_path.exists():
         config = json.loads(mcp_path.read_text(encoding="utf-8"))
@@ -53,15 +72,12 @@ def setup_claude_code(parent_root: Path, lore_dir: Path) -> None:
         config["mcpServers"] = {}
 
     config["mcpServers"]["lore"] = {
-        "command": "uv",
-        "args": [
-            "run", "--with", "fastmcp", "fastmcp", "run",
-            f"{lore_relative}/mcp_server.py",
-        ],
+        "command": cmd,
+        "args": base_args + [f"{lore_relative}/mcp_server.py"],
     }
 
     mcp_path.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"  Updated {mcp_path.relative_to(parent_root)}")
+    print(f"  Updated {mcp_path.relative_to(parent_root)} (using {cmd})")
 
 
 def setup_vscode(parent_root: Path, lore_dir: Path) -> None:
@@ -70,6 +86,7 @@ def setup_vscode(parent_root: Path, lore_dir: Path) -> None:
     vscode_dir.mkdir(exist_ok=True)
     mcp_path = vscode_dir / "mcp.json"
     lore_relative = lore_dir.relative_to(parent_root)
+    cmd, base_args = _detect_mcp_command()
 
     if mcp_path.exists():
         config = json.loads(mcp_path.read_text(encoding="utf-8"))
@@ -81,15 +98,12 @@ def setup_vscode(parent_root: Path, lore_dir: Path) -> None:
 
     config["servers"]["lore"] = {
         "type": "stdio",
-        "command": "uv",
-        "args": [
-            "run", "--with", "fastmcp", "fastmcp", "run",
-            f"{lore_relative}/mcp_server.py",
-        ],
+        "command": cmd,
+        "args": base_args + [f"{lore_relative}/mcp_server.py"],
     }
 
     mcp_path.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"  Updated {mcp_path.relative_to(parent_root)}")
+    print(f"  Updated {mcp_path.relative_to(parent_root)} (using {cmd})")
 
 
 def setup_claude_md(parent_root: Path, lore_dir: Path) -> None:
