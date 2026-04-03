@@ -187,6 +187,8 @@ python scripts/close_knowledge_loop.py \
 python -m pytest tests/ -v    # 74 tests, ~4s
 ```
 
+The close-loop tests use a temporary knowledge tree and temporary index output, so they do not rewrite the active project index even in embedded mode.
+
 ## Benchmark
 
 Built-in eval harness with 8 benchmark cases across 4 query categories.

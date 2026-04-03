@@ -243,12 +243,12 @@ def build_knowledge_card(
     return card_path
 
 
-def reindex(index_output: Path) -> bool:
+def reindex(knowledge_root: Path, index_output: Path) -> bool:
     """Rebuild the local index."""
     import subprocess
     result = subprocess.run(
         [sys.executable, str(SCRIPTS / "local_index.py"),
-         "--knowledge-root", str(get_knowledge_dir()),
+         "--knowledge-root", str(knowledge_root),
          "--output", str(index_output)],
         capture_output=True,
         text=True,
@@ -277,7 +277,7 @@ def main() -> int:
     print(f"Knowledge card written: {card_path}", file=sys.stderr)
 
     # Step 2: Rebuild index
-    if reindex(args.index_output):
+    if reindex(args.knowledge_root, args.index_output):
         print(f"Index rebuilt: {args.index_output}", file=sys.stderr)
     else:
         print("Warning: index rebuild failed", file=sys.stderr)
