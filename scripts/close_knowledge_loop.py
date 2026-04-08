@@ -171,6 +171,26 @@ def validate_answer_schema(answer_data: dict) -> list[str]:
     return warnings
 
 
+def _append_visual_aids(lines: list[str], aids: list[dict]) -> None:
+    """Render a list of visual aids into the card lines."""
+    if not aids:
+        return
+    for va in aids:
+        va_type = va.get("type", "")
+        content = va.get("content", "")
+        caption = va.get("caption", "")
+        alt_text = va.get("alt_text", caption)
+        if va_type == "mermaid":
+            lines.append(f"**{caption}**")
+            lines.append("```mermaid")
+            lines.append(content)
+            lines.append("```")
+        elif va_type in ("image_url", "image_path"):
+            lines.append(f"![{alt_text}]({content})")
+            lines.append(f"*{caption}*")
+        lines.append("")
+
+
 def build_knowledge_card(
     query: str,
     answer_data: dict,
@@ -204,6 +224,19 @@ def build_knowledge_card(
         if keyword in query_lower and tag not in base_tags:
             base_tags.append(tag)
 
+    # Index visual aids by their target section for inline placement
+    visual_aids = answer_data.get("visual_aids", [])
+    _SECTION_ORDER = [
+        "answer", "supporting_claims", "inferences",
+        "uncertainty", "missing_evidence", "suggested_next_steps",
+    ]
+    va_by_section: dict[str | None, list[dict]] = {}
+    for va in visual_aids:
+        if not isinstance(va, dict):
+            continue
+        section = va.get("after_section") or None
+        va_by_section.setdefault(section, []).append(va)
+
     # Build frontmatter
     lines = [
         "---",
@@ -235,6 +268,7 @@ def build_knowledge_card(
         main_answer,
         "",
     ])
+    _append_visual_aids(lines, va_by_section.get("answer", []))
 
     if claims:
         lines.extend(["## Supporting Claims", ""])
@@ -247,50 +281,41 @@ def build_knowledge_card(
             else:
                 lines.append(f"- {c}")
         lines.append("")
+    _append_visual_aids(lines, va_by_section.get("supporting_claims", []))
 
     if inferences:
         lines.extend(["## Inferences", ""])
         for inf in inferences:
             lines.append(f"- {inf}")
         lines.append("")
+    _append_visual_aids(lines, va_by_section.get("inferences", []))
 
     if uncertainties:
         lines.extend(["## Uncertainty", ""])
         for u in uncertainties:
             lines.append(f"- {u}")
         lines.append("")
+    _append_visual_aids(lines, va_by_section.get("uncertainty", []))
 
     if missing:
         lines.extend(["## Missing Evidence", ""])
         for m in missing:
             lines.append(f"- {m}")
         lines.append("")
+    _append_visual_aids(lines, va_by_section.get("missing_evidence", []))
 
     if next_steps:
         lines.extend(["## Suggested Next Steps", ""])
         for s in next_steps:
             lines.append(f"- {s}")
         lines.append("")
+    _append_visual_aids(lines, va_by_section.get("suggested_next_steps", []))
 
-    visual_aids = answer_data.get("visual_aids", [])
-    if visual_aids:
+    # Visual aids without a section go at the end
+    unplaced = va_by_section.get(None, [])
+    if unplaced:
         lines.extend(["## Visual Aids", ""])
-        for va in visual_aids:
-            if not isinstance(va, dict):
-                continue
-            va_type = va.get("type", "")
-            content = va.get("content", "")
-            caption = va.get("caption", "")
-            alt_text = va.get("alt_text", caption)
-            if va_type == "mermaid":
-                lines.append(f"**{caption}**")
-                lines.append("```mermaid")
-                lines.append(content)
-                lines.append("```")
-            elif va_type in ("image_url", "image_path"):
-                lines.append(f"![{alt_text}]({content})")
-                lines.append(f"*{caption}*")
-            lines.append("")
+        _append_visual_aids(lines, unplaced)
 
     # Auto-collect relevant images from research source pages
     source_images = collect_source_images(research_data)

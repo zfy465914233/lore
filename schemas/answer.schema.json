@@ -78,6 +78,11 @@
             "type": "string",
             "description": "Short caption explaining what the visual shows."
           },
+          "after_section": {
+            "type": "string",
+            "enum": ["answer", "supporting_claims", "inferences", "uncertainty", "missing_evidence", "suggested_next_steps"],
+            "description": "Insert this visual after the specified section. If omitted, it goes at the end of the card."
+          },
           "alt_text": {
             "type": "string",
             "description": "Alt text for accessibility (defaults to caption if omitted)."

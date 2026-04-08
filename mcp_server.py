@@ -111,6 +111,12 @@ def save_research(query: str, answer_json: str) -> str:
       comparison charts, result plots — skip decorative screenshots or generic stock photos
     - Always provide a descriptive caption explaining what the image shows
 
+    Visual aids placement (optional after_section field):
+    - "answer" — insert after the main answer paragraph (default for architecture/pipeline diagrams)
+    - "supporting_claims" — insert after claims (default for evidence figures/charts)
+    - "inferences", "uncertainty", "missing_evidence", "suggested_next_steps" — after respective sections
+    - Omit after_section to place at the end of the card (backward compatible)
+
     Args:
         query: The original research question.
         answer_json: JSON string with the structured answer.
