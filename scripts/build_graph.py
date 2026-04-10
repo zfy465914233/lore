@@ -11,6 +11,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import html
 import json
 from pathlib import Path
 
@@ -47,7 +48,10 @@ def build_graph_data(index_path: Path) -> dict:
     if not index_path.exists():
         return {"nodes": [], "edges": []}
 
-    index_data = json.loads(index_path.read_text(encoding="utf-8"))
+    try:
+        index_data = json.loads(index_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {"nodes": [], "edges": []}
     documents = index_data.get("documents", [])
 
     nodes = []
@@ -60,10 +64,13 @@ def build_graph_data(index_path: Path) -> dict:
             continue
         topic = doc.get("topic", "general")
         color = _TOPIC_COLORS.get(topic, _TOPIC_COLORS["general"])
+        safe_title = html.escape(doc.get("title", doc_id))
+        safe_topic = html.escape(topic)
+        safe_type = html.escape(doc.get("type", "?"))
         nodes.append({
             "id": doc_id,
-            "label": doc.get("title", doc_id)[:40],
-            "title": f"<b>{doc.get('title', doc_id)}</b><br>Topic: {topic}<br>Type: {doc.get('type', '?')}",
+            "label": safe_title[:40],
+            "title": f"<b>{safe_title}</b><br>Topic: {safe_topic}<br>Type: {safe_type}",
             "color": color,
             "group": topic,
         })

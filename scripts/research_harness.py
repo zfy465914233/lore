@@ -559,7 +559,7 @@ def fetch_batch_concurrent(
             executor.submit(fetch_content, url): url
             for url in urls
         }
-        for future in as_completed(future_to_url):
+        for future in as_completed(future_to_url, timeout=60):
             url = future_to_url[future]
             try:
                 results[url] = future.result()
@@ -612,9 +612,12 @@ def run_multi_perspective(
     results: dict[str, list[dict[str, Any]]] = {}
     with ThreadPoolExecutor(max_workers=min(len(active), 4)) as executor:
         futures = {executor.submit(_run_one, p): p for p in active}
-        for future in as_completed(futures):
-            perspective, evidence = future.result()
-            results[perspective] = evidence
+        for future in as_completed(futures, timeout=120):
+            try:
+                perspective, evidence = future.result()
+                results[perspective] = evidence
+            except Exception:
+                results[futures[future]] = []
     return results
 
 

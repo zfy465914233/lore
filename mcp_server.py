@@ -285,6 +285,9 @@ def ingest_source(source: str, title: str = "", tags: str = "") -> str:
         content = source.strip()
         auto_title = title or content.split("\n")[0][:80]
 
+    if not auto_title or not auto_title.strip():
+        auto_title = f"untitled-{__import__('datetime').datetime.now(__import__('datetime').timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+
     if not content:
         return json.dumps({"error": "No content extracted from source"})
 
