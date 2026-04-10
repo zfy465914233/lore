@@ -226,6 +226,12 @@ class ExtractEntitiesTest(unittest.TestCase):
     def test_empty_text(self) -> None:
         self.assertEqual([], extract_entities(""))
 
+    def test_multiline_full_text(self) -> None:
+        """Issue 3: entity extraction should work on full card text, not just answer."""
+        text = "Answer paragraph without entities.\n\n## Supporting Claims\n\nMonte Carlo method is used widely."
+        entities = extract_entities(text)
+        self.assertIn("Monte Carlo", entities)
+
 
 if __name__ == "__main__":
     unittest.main()

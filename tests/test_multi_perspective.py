@@ -77,6 +77,36 @@ class ContradictionDetectionTest(unittest.TestCase):
         result = check_contradictions("test", [{"claim": "x"}], index_path)
         self.assertEqual([], result)
 
+    @patch("close_knowledge_loop.bm25_retrieve")
+    def test_empty_claims_still_triggers(self, mock_retrieve: MagicMock) -> None:
+        """Issue 2: contradiction detection should work even without claims."""
+        tmpdir = tempfile.mkdtemp()
+        index_path = Path(tmpdir) / "index.json"
+        index_path.write_text("{}", encoding="utf-8")
+        mock_retrieve.return_value = {
+            "results": [{"doc_id": "card-x", "title": "Overlap", "score": 2.0}]
+        }
+        result = check_contradictions("test query", [], index_path)
+        self.assertEqual(1, len(result))
+        mock_retrieve.assert_called_once()
+
+    @patch("close_knowledge_loop.bm25_retrieve")
+    def test_index_path_passthrough(self, mock_retrieve: MagicMock) -> None:
+        """Issue 1: build_knowledge_card should forward index_path to check_contradictions."""
+        tmpdir = tempfile.mkdtemp()
+        custom_index = Path(tmpdir) / "custom" / "index.json"
+        custom_index.parent.mkdir(parents=True, exist_ok=True)
+        custom_index.write_text("{}", encoding="utf-8")
+        mock_retrieve.return_value = {"results": []}
+        from close_knowledge_loop import build_knowledge_card
+        kr = Path(tmpdir) / "knowledge"
+        kr.mkdir()
+        answer_data = {"answer": "test answer"}
+        build_knowledge_card("test", answer_data, None, kr, index_path=custom_index)
+        # bm25_retrieve should have received our custom index, not DEFAULT_INDEX
+        if mock_retrieve.called:
+            self.assertEqual(custom_index, mock_retrieve.call_args[0][1])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -181,7 +181,7 @@ def resolve_link_target(target: str, all_ids: set[str]) -> str | None:
 # ── Entity extraction ─────────────────────────────────────────────
 
 _CAPITALIZED_PHRASE = re.compile(
-    r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b"
+    r"\b([A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)+)\b"
 )
 _BACKTICK_TERM = re.compile(r"`([^`]{2,40})`")
 _STOP_ENTITIES = {

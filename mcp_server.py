@@ -146,7 +146,7 @@ def save_research(query: str, answer_json: str) -> str:
 
     # Build knowledge card
     try:
-        card_path = build_knowledge_card(query, answer_data, None, get_knowledge_dir())
+        card_path = build_knowledge_card(query, answer_data, None, get_knowledge_dir(), index_path=get_index_path())
     except Exception as e:
         return json.dumps({"error": f"Failed to write card: {e}"})
 
@@ -239,7 +239,7 @@ def capture_answer(query: str, answer: str, tags: str = "") -> str:
 
     # Build the card
     try:
-        card_path = build_knowledge_card(query, answer_data, None, get_knowledge_dir())
+        card_path = build_knowledge_card(query, answer_data, None, get_knowledge_dir(), index_path=get_index_path())
     except Exception as e:
         return json.dumps({"error": f"Failed to write card: {e}"})
 
@@ -303,7 +303,7 @@ def ingest_source(source: str, title: str = "", tags: str = "") -> str:
         answer_data["tags"] = answer_data.get("tags", []) + ["ingested-url"]
 
     try:
-        card_path = build_knowledge_card(auto_title, answer_data, None, get_knowledge_dir())
+        card_path = build_knowledge_card(auto_title, answer_data, None, get_knowledge_dir(), index_path=get_index_path())
     except Exception as e:
         return json.dumps({"error": f"Failed to write card: {e}"})
 

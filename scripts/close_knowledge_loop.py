@@ -100,7 +100,7 @@ def check_contradictions(query: str, claims: list[dict], index_path: Path) -> li
     Uses BM25 to find similar cards, then surfaces overlapping claims.
     Returns a list of {card_id, card_title, their_claims} for related cards.
     """
-    if not index_path.exists() or not claims:
+    if not index_path.exists():
         return []
 
     try:
@@ -246,6 +246,7 @@ def build_knowledge_card(
     answer_data: dict,
     research_data: dict | None,
     knowledge_root: Path,
+    index_path: Path | None = None,
 ) -> Path:
     """Build a knowledge card from research evidence and structured answer."""
     domain = infer_domain(query)
@@ -406,7 +407,7 @@ def build_knowledge_card(
 
     # Auto-extract entities and add wiki-links
     full_text = "\n".join(lines)
-    entities = extract_entities(main_answer)
+    entities = extract_entities(full_text)
     if entities:
         lines.extend(["## Entities", ""])
         for entity in entities[:15]:
@@ -415,7 +416,8 @@ def build_knowledge_card(
         lines.append("")
 
     # Check for related/potentially contradicting cards
-    related = check_contradictions(query, claims, DEFAULT_INDEX)
+    _idx = index_path if index_path is not None else DEFAULT_INDEX
+    related = check_contradictions(query, claims, _idx)
     if related:
         lines.extend(["## See Also", ""])
         for r in related:
@@ -497,7 +499,8 @@ def main() -> int:
 
     # Step 1: Build knowledge card
     card_path = build_knowledge_card(
-        args.query, answer_data, research_data, args.knowledge_root
+        args.query, answer_data, research_data, args.knowledge_root,
+        index_path=args.index_output,
     )
     logger.info("Knowledge card written: %s", card_path)
 
