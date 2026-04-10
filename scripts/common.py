@@ -149,3 +149,30 @@ def normalize_date(value: Any) -> str | None:
 def now_iso() -> str:
     """Current UTC time in ISO format."""
     return datetime.now(timezone.utc).isoformat()
+
+
+# ── Wiki-link extraction ──────────────────────────────────────────
+
+_WIKI_LINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
+
+
+def extract_wiki_links(text: str) -> list[str]:
+    """Extract [[card-id]] wiki-links from markdown text.
+
+    Returns a deduplicated list of link targets (card IDs or slugs).
+    """
+    return list(dict.fromkeys(_WIKI_LINK_RE.findall(text)))
+
+
+def resolve_link_target(target: str, all_ids: set[str]) -> str | None:
+    """Resolve a wiki-link target to a doc_id.
+
+    Tries exact match first, then partial match (target is a substring
+    of a doc_id). Returns None if no match is found.
+    """
+    if target in all_ids:
+        return target
+    for did in all_ids:
+        if target in did:
+            return did
+    return None

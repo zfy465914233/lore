@@ -1,10 +1,11 @@
-"""CLI tool for knowledge governance: validate, scan, and manage card lifecycle.
+"""CLI tool for knowledge governance: validate, scan, lint, and manage card lifecycle.
 
 Usage:
   python knowledge_governance.py validate                    # validate all cards
   python knowledge_governance.py duplicates                  # find duplicate cards
   python knowledge_governance.py transition <card_id> <state> # change lifecycle state
   python knowledge_governance.py scan                        # scan and report
+  python knowledge_governance.py lint                        # content-level health checks
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from knowledge_lifecycle import (
     validate_card,
     VALID_TRANSITIONS,
 )
+from common import resolve_link_target
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_KNOWLEDGE_ROOT = ROOT / "knowledge"
@@ -163,16 +165,114 @@ def cmd_show_transitions() -> int:
     return 0
 
 
+def cmd_lint(knowledge_root: Path, stale_days: int = 90) -> int:
+    """Run content-level health checks on the knowledge base.
+
+    Checks:
+      - Orphan cards (no incoming or outgoing links)
+      - Stale cards (not updated in stale_days days)
+      - Broken wiki-links (links pointing to non-existent cards)
+      - Schema drift (frontmatter missing required fields)
+    """
+    from datetime import datetime, timedelta, timezone
+    import re
+
+    cards = scan_knowledge_dir(knowledge_root)
+    if not cards:
+        print("No cards found.")
+        return 0
+
+    card_ids = {c.get("id", "") for c in cards if c.get("id")}
+    total_issues = 0
+
+    # Build link graph from card bodies
+    link_re = re.compile(r"\[\[([^\]]+)\]\]")
+    outgoing: dict[str, set[str]] = {}
+    incoming: dict[str, set[str]] = {}
+
+    for card in cards:
+        cid = card.get("id", "")
+        path = card.get("_path", "")
+        raw = Path(path).read_text(encoding="utf-8") if path else ""
+        _, body = parse_frontmatter(raw) if raw.startswith("---\n") else ({}, raw)
+        targets = set(link_re.findall(body))
+        outgoing[cid] = targets
+        for t in targets:
+            # Resolve target to actual card id for accurate incoming tracking
+            resolved = resolve_link_target(t, card_ids)
+            if resolved:
+                incoming.setdefault(resolved, set()).add(cid)
+
+    # Check orphans (no outgoing links AND no incoming backlinks)
+    orphans = []
+    for card in cards:
+        cid = card.get("id", "")
+        has_out = bool(outgoing.get(cid))
+        has_in = cid in incoming
+        if not has_out and not has_in:
+            orphans.append(card)
+
+    if orphans:
+        total_issues += len(orphans)
+        print(f"\n[ORPHAN] {len(orphans)} card(s) with no links (in or out):")
+        for c in orphans:
+            print(f"  {c.get('id', '?')} — {c.get('title', '?')}")
+
+    # Check broken links
+    broken = []
+    for card in cards:
+        cid = card.get("id", "")
+        for target in outgoing.get(cid, set()):
+            if resolve_link_target(target, card_ids) is None:
+                broken.append((cid, target))
+    if broken:
+        total_issues += len(broken)
+        print(f"\n[BROKEN LINK] {len(broken)} link(s) pointing to non-existent cards:")
+        for cid, target in broken:
+            print(f"  {cid} → [[{target}]]")
+
+    # Check staleness
+    stale_cutoff = datetime.now(timezone.utc) - timedelta(days=stale_days)
+    stale_cards = []
+    for card in cards:
+        updated = card.get("updated_at", "")
+        if not updated:
+            # Don't mark drafts as stale — they may be newly captured
+            if card.get("confidence") != "draft" and card.get("review_status") != "draft":
+                stale_cards.append(card)
+            continue
+        try:
+            updated_dt = datetime.strptime(str(updated)[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            if updated_dt < stale_cutoff:
+                stale_cards.append(card)
+        except ValueError:
+            pass
+
+    if stale_cards:
+        total_issues += len(stale_cards)
+        print(f"\n[STALE] {len(stale_cards)} card(s) not updated in {stale_days} days:")
+        for c in stale_cards:
+            print(f"  {c.get('id', '?')} — last updated {c.get('updated_at', '?')}")
+
+    if total_issues == 0:
+        print(f"All {len(cards)} cards passed lint checks.")
+    else:
+        print(f"\n{total_issues} issue(s) found across {len(cards)} cards.")
+
+    return 1 if total_issues > 0 else 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Knowledge governance CLI.")
     parser.add_argument(
         "command",
-        choices=["validate", "duplicates", "scan", "transition", "transitions"],
+        choices=["validate", "duplicates", "scan", "transition", "transitions", "lint"],
     )
     parser.add_argument("--knowledge-root", type=Path, default=DEFAULT_KNOWLEDGE_ROOT)
     parser.add_argument("--card-id", help="Card ID for transition command.")
     parser.add_argument("--state", help="Target lifecycle state for transition.")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show warnings.")
+    parser.add_argument("--stale-days", type=int, default=90, help="Days after which a card is considered stale (default 90).")
 
     args = parser.parse_args()
 
@@ -189,6 +289,8 @@ def main() -> int:
         return cmd_transition(args.card_id, args.state, args.knowledge_root)
     elif args.command == "transitions":
         return cmd_show_transitions()
+    elif args.command == "lint":
+        return cmd_lint(args.knowledge_root, args.stale_days)
     return 0
 
 

@@ -249,6 +249,11 @@ def build_knowledge_card(
         if keyword in query_lower and tag not in base_tags:
             base_tags.append(tag)
 
+    # Merge user-supplied tags from answer_data (e.g. from capture_answer)
+    for extra_tag in answer_data.get("tags", []):
+        if extra_tag and extra_tag not in base_tags:
+            base_tags.append(extra_tag)
+
     # Index visual aids by their target section for inline placement
     visual_aids = answer_data.get("visual_aids", [])
     _SECTION_ORDER = [
@@ -376,6 +381,10 @@ def build_knowledge_card(
     output_dir.mkdir(parents=True, exist_ok=True)
     card_path = output_dir / f"research-{slug}.md"
     card_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    # Record in changelog
+    append_changelog(knowledge_root, "created", f"research-{slug}", f"type={card_type}, topic={domain}")
+
     return card_path
 
 
@@ -390,6 +399,35 @@ def reindex(knowledge_root: Path, index_output: Path) -> bool:
         text=True,
     )
     return result.returncode == 0
+
+
+def append_changelog(
+    knowledge_root: Path,
+    action: str,
+    card_id: str,
+    detail: str = "",
+) -> None:
+    """Append an entry to the knowledge base changelog.
+
+    Args:
+        knowledge_root: Root directory of the knowledge base.
+        action: One of 'created', 'updated', 'deprecated', 'transitioned'.
+        card_id: The card identifier.
+        detail: Optional extra context (e.g. target state for transitions).
+    """
+    changelog_path = knowledge_root / "changelog.md"
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    entry = f"- **{now}** [{action}] {card_id}"
+    if detail:
+        entry += f" — {detail}"
+    entry += "\n"
+
+    if not changelog_path.exists():
+        header = "# Knowledge Base Changelog\n\nAll changes to knowledge cards are recorded here.\n\n"
+        changelog_path.write_text(header + entry, encoding="utf-8")
+    else:
+        with open(changelog_path, "a", encoding="utf-8") as f:
+            f.write(entry)
 
 
 def main() -> int:
