@@ -57,6 +57,16 @@
       "description": "Actionable next steps for the user, ordered by priority. Should be concrete enough to execute.",
       "items": { "type": "string" }
     },
+    "expected_output": {
+      "type": "string",
+      "default": "",
+      "description": "For method-type cards: description of what a successful result looks like (output format, shape, key metrics, acceptance criteria). Synthesize from the answer if not provided by sources. Only required when the content is procedural/method-like."
+    },
+    "example": {
+      "type": "string",
+      "default": "",
+      "description": "For method-type cards: a minimal worked example (sample input → steps → expected output). Construct synthetically if sources lack one. Write '[insufficient data — needs supplementation]' if impossible to construct."
+    },
     "visual_aids": {
       "type": "array",
       "default": [],

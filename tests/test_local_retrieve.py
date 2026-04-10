@@ -43,7 +43,7 @@ class LocalRetrieveTest(unittest.TestCase):
 
         top = payload["results"][0]
         self.assertEqual("example-markov-chain-definition", top["doc_id"])
-        self.assertEqual("definition", top["type"])
+        self.assertEqual("knowledge", top["type"])
         self.assertEqual("examples", top["topic"])
         self.assertIn("markov", top["matched_terms"])
         self.assertGreater(top["score"], 0)

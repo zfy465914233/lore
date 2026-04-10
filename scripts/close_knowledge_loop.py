@@ -191,6 +191,28 @@ def _append_visual_aids(lines: list[str], aids: list[dict]) -> None:
         lines.append("")
 
 
+def _infer_card_type(query: str, answer_data: dict) -> str:
+    """Infer card type from query and answer content.
+
+    Returns 'method' if the content contains procedural steps,
+    otherwise 'knowledge'.
+    """
+    normalized = query.lower().strip()
+    procedural_keywords = (
+        "how to ", "implement", "deploy", "train", "build",
+        "configure", "setup", "install", "run ", "optimize",
+        "tune ", "debug", "fix ", "procedure", "algorithm",
+    )
+    if any(kw in normalized for kw in procedural_keywords):
+        return "method"
+    # Check if answer contains step-by-step content
+    answer = str(answer_data.get("answer", "")).lower()
+    step_markers = ("step 1", "step 2", "first,", "then,", "procedure:", "algorithm:")
+    if any(m in answer for m in step_markers):
+        return "method"
+    return "knowledge"
+
+
 def build_knowledge_card(
     query: str,
     answer_data: dict,
@@ -199,6 +221,7 @@ def build_knowledge_card(
 ) -> Path:
     """Build a knowledge card from research evidence and structured answer."""
     domain = infer_domain(query)
+    card_type = _infer_card_type(query, answer_data)
     slug = safe_slug(query)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     source_urls = collect_source_urls(research_data)
@@ -210,6 +233,8 @@ def build_knowledge_card(
     uncertainties = answer_data.get("uncertainty", [])
     missing = answer_data.get("missing_evidence", [])
     next_steps = answer_data.get("suggested_next_steps", [])
+    expected_output = answer_data.get("expected_output", "")
+    example = answer_data.get("example", "")
 
     # Infer tags from query and domain
     base_tags = ["research-note", domain]
@@ -242,7 +267,7 @@ def build_knowledge_card(
         "---",
         f"id: research-{slug}",
         f"title: Research Note — {query}",
-        f"type: method",
+        f"type: {card_type}",
         f"topic: {domain}",
         "tags:",
     ]
@@ -310,6 +335,13 @@ def build_knowledge_card(
             lines.append(f"- {s}")
         lines.append("")
     _append_visual_aids(lines, va_by_section.get("suggested_next_steps", []))
+
+    # Method-specific sections: Expected Output and Concrete Example
+    if card_type == "method":
+        if expected_output:
+            lines.extend(["## Expected Output", "", expected_output, ""])
+        if example:
+            lines.extend(["## Concrete Example", "", example, ""])
 
     # Visual aids without a section go at the end
     unplaced = va_by_section.get(None, [])

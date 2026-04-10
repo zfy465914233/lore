@@ -37,18 +37,16 @@ def parse_query(text: str) -> str:
 
 
 def infer_card_type(query: str) -> str:
+    """Infer card type from query. Returns 'method' if procedural, else 'knowledge'."""
     normalized = query.lower().strip()
-    if normalized.startswith("what is ") or " definition" in normalized:
-        return "definition"
-    if "derive" in normalized or "derivation" in normalized or "proof" in normalized:
-        return "derivation"
-    if "theorem" in normalized:
-        return "theorem"
-    if normalized.startswith("compare ") or " comparison" in normalized:
-        return "comparison"
-    if normalized.startswith("decision ") or "decision on " in normalized:
-        return "decision_record"
-    return "method"
+    procedural_keywords = (
+        "how to ", "implement", "deploy", "train", "build",
+        "configure", "setup", "install", "run ", "optimize",
+        "tune ", "debug", "fix ", "procedure", "algorithm",
+    )
+    if any(kw in normalized for kw in procedural_keywords):
+        return "method"
+    return "knowledge"
 
 
 def infer_domain_folder(query: str) -> str:

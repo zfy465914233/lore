@@ -84,7 +84,7 @@ class PromoteDraftTest(unittest.TestCase):
             self.assertTrue(promoted_path.exists(), "promoted card candidate should be written")
 
             text = promoted_path.read_text(encoding="utf-8")
-            self.assertIn("type: definition", text)
+            self.assertIn("type: knowledge", text)
             self.assertIn("origin: promoted_from_distilled_note", text)
             self.assertIn("source_refs:", text)
             self.assertIn("example-markov-chain-definition", text)

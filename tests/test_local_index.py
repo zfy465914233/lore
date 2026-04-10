@@ -33,7 +33,7 @@ class LocalIndexTest(unittest.TestCase):
         self.assertNotIn("README", doc_ids)
 
         definition_doc = next(doc for doc in payload["documents"] if doc["doc_id"] == "example-markov-chain-definition")
-        self.assertEqual("definition", definition_doc["type"])
+        self.assertEqual("knowledge", definition_doc["type"])
         self.assertIn("Markov", definition_doc["search_text"])
 
 

@@ -79,7 +79,7 @@ class HybridEvidencePackTest(unittest.TestCase):
 
         local_item = next(item for item in payload["items"] if item["origin"] == "local")
         self.assertEqual("example-markov-chain-definition", local_item["evidence_id"])
-        self.assertEqual("definition", local_item["source_type"])
+        self.assertEqual("knowledge", local_item["source_type"])
         self.assertIn("matched_terms", local_item)
 
         web_item = next(item for item in payload["items"] if item["origin"] == "web")

@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 ANSWER_SCHEMA_PATH = ROOT / "schemas" / "answer.schema.json"
-RESEARCH_NOTE_TEMPLATE = ROOT / "templates" / "research-note.md"
+RESEARCH_NOTE_TEMPLATE = ROOT / "templates" / "knowledge.md"
 
 
 class LocalAnswerSynthesisTest(unittest.TestCase):
@@ -211,13 +211,13 @@ class AnswerSchemaTest(unittest.TestCase):
         ]:
             self.assertIn(field, props, f"Schema missing field: {field}")
 
-    def test_research_note_template_exists_and_has_sections(self) -> None:
-        self.assertTrue(RESEARCH_NOTE_TEMPLATE.exists(), "research-note.md template must exist")
+    def test_knowledge_template_exists_and_has_sections(self) -> None:
+        self.assertTrue(RESEARCH_NOTE_TEMPLATE.exists(), "knowledge.md template must exist")
         content = RESEARCH_NOTE_TEMPLATE.read_text()
         for section in [
-            "## Question", "## Answer", "## Supporting Claims",
+            "## Core Statement", "## Formal Detail", "## Supporting Evidence",
             "## Inferences", "## Uncertainty", "## Missing Evidence",
-            "## Suggested Next Steps",
+            "## Related Concepts",
         ]:
             self.assertIn(section, content, f"Template missing section: {section}")
 

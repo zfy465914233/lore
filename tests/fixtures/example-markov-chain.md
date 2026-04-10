@@ -1,7 +1,7 @@
 ---
 id: example-markov-chain-definition
 title: Markov Chain — Definition
-type: definition
+type: knowledge
 topic: examples
 tags:
   - example

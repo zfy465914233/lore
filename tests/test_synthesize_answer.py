@@ -35,7 +35,7 @@ SAMPLE_PROMPT_BUNDLE = {
             "evidence_id": "example-markov-chain-definition",
             "origin": "local",
             "title": "Markov Chain Definition",
-            "source_type": "definition",
+            "source_type": "knowledge",
         }
     ],
 }

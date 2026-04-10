@@ -18,7 +18,7 @@ class CardValidationTest(unittest.TestCase):
         code = (
             "from knowledge_lifecycle import validate_card; "
             "issues = validate_card({"
-            "'id': 'test', 'title': 'Test', 'type': 'definition', "
+            "'id': 'test', 'title': 'Test', 'type': 'knowledge', "
             "'topic': 'test', 'confidence': 'confirmed', 'updated_at': '2026-04-02', "
             "'tags': ['test'], 'source_refs': ['local:seed'], 'review_status': 'trusted'"
             "}); "

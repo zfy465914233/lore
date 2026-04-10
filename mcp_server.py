@@ -111,6 +111,14 @@ def save_research(query: str, answer_json: str) -> str:
       comparison charts, result plots — skip decorative screenshots or generic stock photos
     - Always provide a descriptive caption explaining what the image shows
 
+    For method/procedural content (how-to, implementation, deployment, etc.), also include:
+    - expected_output: Description of what a successful result looks like — output format,
+      shape, key metrics, or acceptance criteria. Synthesize from the answer if sources
+      don't explicitly provide this.
+    - example: A minimal worked example (sample input → processing steps → expected output).
+      Construct synthetically based on the answer if sources lack one. Write
+      '[insufficient data — needs supplementation]' only if impossible to construct.
+
     Visual aids placement (optional after_section field):
     - "answer" — insert after the main answer paragraph (default for architecture/pipeline diagrams)
     - "supporting_claims" — insert after claims (default for evidence figures/charts)
