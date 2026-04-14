@@ -58,6 +58,10 @@ Knowledge cards have full lifecycle management: **draft → reviewed → trusted
 
 ## Quick Start
 
+Choose one of the two setup paths below depending on how you want to use Lore Agent.
+
+### Use Lore Agent as a standalone project
+
 ```bash
 # Clone and install
 git clone https://github.com/zfy465914233/lore-agent.git
@@ -76,7 +80,9 @@ MCP configs are pre-configured for both Claude Code and VS Code Copilot:
 - **Claude Code**: `.mcp.json` is ready. `cd` into the project and start Claude Code.
 - **VS Code Copilot**: `.vscode/mcp.json` is ready. Open the project, enable agent mode.
 
-### Embed into an existing project
+If you use this repository directly, you do not need to run `setup_mcp.py`. The setup script is only needed for the embed path below.
+
+### Embed Lore Agent into an existing project
 
 ```bash
 cp -r lore-agent/ your-project/lore-agent/

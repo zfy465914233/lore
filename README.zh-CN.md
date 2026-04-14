@@ -56,6 +56,10 @@ Lore Agent 给它加了一个**知识飞轮**：
 
 ## 快速开始
 
+根据你的使用方式，从下面两种接入路径里选择一种。
+
+### 作为独立项目使用 Lore Agent
+
 ```bash
 # 克隆并安装
 git clone https://github.com/zfy465914233/lore-agent.git
@@ -74,7 +78,9 @@ docker compose up -d
 - **Claude Code**：`.mcp.json` 已配好，`cd` 到项目目录启动即可
 - **VS Code Copilot**：`.vscode/mcp.json` 已配好，打开项目启用 agent 模式即可
 
-### 嵌入到已有项目
+如果直接在本仓库中使用，则不需要执行 `setup_mcp.py`。这个脚本只在下面“嵌入到已有项目”的路径中需要。
+
+### 将 Lore Agent 嵌入到已有项目
 
 ```bash
 cp -r lore-agent/ your-project/lore-agent/
