@@ -4,8 +4,9 @@ Routes cards into a hierarchical structure:
     knowledge/<major_domain>/<card>.md
     knowledge/<major_domain>/<subdomain>/<card>.md
 
-The routing policy lives in schemas/domain_routing_policy.json so the
-decision rules are data-driven instead of being hardcoded in Python.
+AI is the primary router. It sees existing folder content summaries and makes
+informed decisions. Falls back to folder-name token matching and heuristic
+slug generation when AI is unavailable.
 """
 
 from __future__ import annotations
@@ -14,30 +15,70 @@ import json
 import os
 import re
 from pathlib import Path
+from typing import TypedDict
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
+SKILL_PATH = ROOT / "schemas" / "routing_skill.md"
 POLICY_PATH = ROOT / "schemas" / "domain_routing_policy.json"
 GUIDE_PATH = ROOT / "schemas" / "domain_routing_guide.md"
 
-# ── Folder cache ───────────────────────────────────────────────────
+# ── Limits ──────────────────────────────────────────────────────────
+
+MAX_TITLES_PER_FOLDER = 10
+MAX_TAGS_PER_FOLDER = 20
+MAX_CARD_SUMMARY_LEN = 500
+
+# ── Folder cache ────────────────────────────────────────────────────
 
 _domain_tree_cache: dict[str, dict[str, Path]] | None = None
+_folder_summaries_cache: dict[str, dict[str, FolderSummary]] | None = None
 _cache_root: Path | None = None
 ROOT_SUBDOMAIN = ""
 
 
-def load_routing_policy() -> dict[str, object]:
-    """Load the domain routing policy from disk."""
+# ── Types ───────────────────────────────────────────────────────────
+
+
+class FolderSummary(TypedDict):
+    card_count: int
+    titles: list[str]
+    tags: list[str]
+
+
+# ── Config loaders ──────────────────────────────────────────────────
+
+
+def load_routing_policy() -> dict[str, object] | None:
+    """Load the optional user-override routing policy.
+
+    Returns None if the file does not exist (routing does not depend on it).
+    """
+    if not POLICY_PATH.exists():
+        return None
     return json.loads(POLICY_PATH.read_text(encoding="utf-8"))
 
 
+def load_routing_skill() -> str:
+    """Load the routing skill instruction for AI."""
+    if not SKILL_PATH.exists():
+        return (
+            "You are a knowledge base routing assistant. "
+            "Decide where a new card should be filed. "
+            "Return JSON: {\"major_domain\":\"...\",\"subdomain\":\"\",\"reason\":\"...\"}"
+        )
+    return SKILL_PATH.read_text(encoding="utf-8")
+
+
 def load_routing_guide() -> str:
-    """Load the human-readable routing guide from disk."""
+    """Load the legacy routing guide (kept for backward compatibility)."""
     if not GUIDE_PATH.exists():
         return ""
     return GUIDE_PATH.read_text(encoding="utf-8")
+
+
+# ── Domain tree discovery ──────────────────────────────────────────
 
 
 def discover_domain_tree(knowledge_root: Path) -> dict[str, dict[str, Path]]:
@@ -75,42 +116,131 @@ def get_domain_tree(knowledge_root: Path) -> dict[str, dict[str, Path]]:
 
 def clear_folder_cache() -> None:
     """Invalidate the folder cache so next call re-discovers the tree."""
-    global _domain_tree_cache, _cache_root
+    global _domain_tree_cache, _folder_summaries_cache, _cache_root
     _domain_tree_cache = None
+    _folder_summaries_cache = None
     _cache_root = None
 
 
-# ── Token extraction ───────────────────────────────────────────────
+# ── Folder summaries ───────────────────────────────────────────────
 
 
-def _tokens_from_text(value: str) -> list[str]:
-    parts = value.lower().split("-")
-    return [value.lower()] + parts
+def _parse_frontmatter_title_tags(text: str) -> tuple[str, list[str]]:
+    """Extract title and tags from markdown frontmatter."""
+    title = ""
+    tags: list[str] = []
+    if not text.startswith("---"):
+        return title, tags
+    end = text.find("---", 3)
+    if end < 0:
+        return title, tags
+    fm = text[3:end]
+    current_list_key: str | None = None
+    for line in fm.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("title:"):
+            title = stripped[len("title:"):].strip().strip('"').strip("'")
+            current_list_key = None
+        elif stripped.startswith("tags:"):
+            current_list_key = "tags"
+        elif stripped.startswith("- ") and current_list_key == "tags":
+            tag = stripped[2:].strip()
+            if tag:
+                tags.append(tag)
+        elif stripped and not stripped.startswith("-") and ":" in stripped:
+            current_list_key = None
+    return title, tags
 
 
-def _major_tokens(major_slug: str, major_policy: dict[str, object]) -> list[str]:
-    tokens = _tokens_from_text(major_slug)
-    label = str(major_policy.get("label", "")).lower()
-    if label:
-        tokens.append(label)
-    for alias in major_policy.get("aliases", []):
-        tokens.append(str(alias).lower())
-    return list(dict.fromkeys(tokens))
+def collect_folder_summaries(knowledge_root: Path) -> dict[str, dict[str, FolderSummary]]:
+    """Collect lightweight content summaries for each folder.
+
+    Returns {major_domain: {subdomain: FolderSummary}}.
+    Reads only card frontmatter (title + tags), not full body.
+    """
+    global _folder_summaries_cache, _cache_root
+    if _folder_summaries_cache is not None and _cache_root == knowledge_root:
+        return _folder_summaries_cache
+
+    domain_tree = get_domain_tree(knowledge_root)
+    summaries: dict[str, dict[str, FolderSummary]] = {}
+
+    for major_slug, subdomain_map in domain_tree.items():
+        summaries[major_slug] = {}
+        for sub_slug, folder_path in subdomain_map.items():
+            titles: list[str] = []
+            tags: list[str] = []
+            card_count = 0
+            if folder_path.is_dir():
+                for md_file in sorted(folder_path.glob("*.md")):
+                    if md_file.name.startswith("_"):
+                        continue
+                    card_count += 1
+                    if len(titles) < MAX_TITLES_PER_FOLDER:
+                        try:
+                            text = md_file.read_text(encoding="utf-8")
+                            t, tg = _parse_frontmatter_title_tags(text)
+                            if t:
+                                titles.append(t[:80])
+                            for tag in tg:
+                                if tag not in tags and len(tags) < MAX_TAGS_PER_FOLDER:
+                                    tags.append(tag)
+                        except (OSError, UnicodeDecodeError):
+                            pass
+            summaries[major_slug][sub_slug] = FolderSummary(
+                card_count=card_count,
+                titles=titles,
+                tags=tags,
+            )
+
+    _folder_summaries_cache = summaries
+    return summaries
 
 
-def _subdomain_tokens(sub_slug: str, sub_policy: dict[str, object]) -> list[str]:
-    if not sub_slug:
-        return []
-    tokens = _tokens_from_text(sub_slug)
-    label = str(sub_policy.get("label", "")).lower()
-    if label:
-        tokens.append(label)
-    for alias in sub_policy.get("aliases", []):
-        tokens.append(str(alias).lower())
-    return list(dict.fromkeys(tokens))
+# ── Routing context ────────────────────────────────────────────────
 
 
-# ── Matching ───────────────────────────────────────────────────────
+def build_routing_context(
+    query: str,
+    knowledge_root: Path,
+    card_title: str = "",
+    card_summary: str = "",
+) -> dict:
+    """Build the full context object for routing decisions."""
+    domain_tree = get_domain_tree(knowledge_root)
+    folder_summaries = collect_folder_summaries(knowledge_root)
+
+    existing_folders: dict[str, list[str]] = {}
+    for major, subs in domain_tree.items():
+        existing_folders[major] = sorted(subs.keys())
+
+    folder_contents: dict[str, dict[str, dict]] = {}
+    for major, sub_map in folder_summaries.items():
+        folder_contents[major] = {}
+        for sub, summary in sub_map.items():
+            if summary["card_count"] == 0 and sub == ROOT_SUBDOMAIN:
+                continue
+            folder_contents[major][sub] = {
+                "card_count": summary["card_count"],
+                "titles": summary["titles"],
+            }
+
+    return {
+        "query": query,
+        "card_title": card_title,
+        "card_summary": card_summary[:MAX_CARD_SUMMARY_LEN],
+        "existing_folders": existing_folders,
+        "folder_contents": folder_contents,
+    }
+
+
+# ── Token extraction (for folder-name matching) ────────────────────
+
+
+def _tokens_from_slug(slug: str) -> list[str]:
+    """Split a kebab-case slug into searchable tokens."""
+    parts = slug.lower().split("-")
+    return [slug.lower()] + [p for p in parts if len(p) > 1]
 
 
 def _score_tokens(query: str, tokens: list[str]) -> int:
@@ -129,12 +259,83 @@ def _score_tokens(query: str, tokens: list[str]) -> int:
     return score
 
 
+# ── Folder-name matching (Tier 2, no API needed) ──────────────────
+
+
+def match_existing_folders(
+    query: str,
+    domain_tree: dict[str, dict[str, Path]],
+) -> tuple[str, str | None] | None:
+    """Match a query against existing folder names using token scoring.
+
+    This is the zero-cost fallback when AI is unavailable.
+    It does not depend on any predefined policy — only on actual folder names.
+    """
+    best_route: tuple[str, str | None] | None = None
+    best_score = 0
+
+    for major_slug, subdomain_map in domain_tree.items():
+        major_tokens = _tokens_from_slug(major_slug)
+        major_score = _score_tokens(query, major_tokens)
+
+        for sub_slug in subdomain_map:
+            if sub_slug in {ROOT_SUBDOMAIN, "general"}:
+                continue
+            sub_tokens = _tokens_from_slug(sub_slug)
+            sub_score = _score_tokens(query, sub_tokens)
+            if sub_score == 0:
+                continue
+            pair_score = (sub_score * 10) + major_score
+            if pair_score > best_score:
+                best_score = pair_score
+                best_route = (major_slug, sub_slug)
+
+        if major_score > best_score:
+            best_score = major_score
+            best_route = (major_slug, None)
+
+    if best_route is None or best_score == 0:
+        return None
+
+    return best_route
+
+
+# ── Legacy policy matching (kept for optional user overrides) ──────
+
+
+def _major_tokens(major_slug: str, major_policy: dict[str, object]) -> list[str]:
+    tokens = _tokens_from_slug(major_slug)
+    label = str(major_policy.get("label", "")).lower()
+    if label:
+        tokens.append(label)
+    for alias in major_policy.get("aliases", []):
+        tokens.append(str(alias).lower())
+    return list(dict.fromkeys(tokens))
+
+
+def _subdomain_tokens(sub_slug: str, sub_policy: dict[str, object]) -> list[str]:
+    if not sub_slug:
+        return []
+    tokens = _tokens_from_slug(sub_slug)
+    label = str(sub_policy.get("label", "")).lower()
+    if label:
+        tokens.append(label)
+    for alias in sub_policy.get("aliases", []):
+        tokens.append(str(alias).lower())
+    return list(dict.fromkeys(tokens))
+
+
 def match_route(
     query: str,
     policy: dict[str, object],
     domain_tree: dict[str, dict[str, Path]],
 ) -> tuple[str, str | None] | None:
-    """Match a query against major domains and subdomains using policy aliases."""
+    """Match a query against policy-defined domains and subdomains.
+
+    This is the legacy policy-based matcher, kept for backward compatibility
+    and optional user overrides. Prefer match_existing_folders() for the
+    zero-config path.
+    """
     majors = policy.get("major_domains", {})
     best_route: tuple[str, str | None] | None = None
     best_score = 0
@@ -166,7 +367,7 @@ def match_route(
     return best_route
 
 
-# ── AI fallback ────────────────────────────────────────────────────
+# ── AI routing ─────────────────────────────────────────────────────
 
 
 def _router_api_url() -> str:
@@ -181,13 +382,8 @@ def _router_model() -> str:
     return os.getenv("LORE_ROUTER_MODEL") or os.getenv("LLM_MODEL") or "gpt-4o-mini"
 
 
-def _call_router_llm(prompt: str) -> str | None:
-    """Call an OpenAI-compatible endpoint for folder classification.
-
-    This intentionally reuses the same environment contract as the synthesis
-    path so the router fallback can work in VS Code Copilot setups as well,
-    including GitHub-token-backed endpoints.
-    """
+def _call_router_llm(system_prompt: str, user_message: str) -> str | None:
+    """Call an OpenAI-compatible endpoint for folder classification."""
     api_key = _router_api_key()
     if not api_key:
         return None
@@ -195,17 +391,11 @@ def _call_router_llm(prompt: str) -> str | None:
     payload = {
         "model": _router_model(),
         "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are a knowledge base taxonomy assistant. "
-                    "Return exactly one folder slug and nothing else."
-                ),
-            },
-            {"role": "user", "content": prompt},
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
         ],
         "temperature": 0,
-        "max_tokens": 32,
+        "max_tokens": 128,
     }
     headers = {
         "Content-Type": "application/json",
@@ -230,42 +420,34 @@ def _call_router_llm(prompt: str) -> str | None:
         return None
 
 
-def _build_routing_prompt(
-    query: str,
-    policy: dict[str, object],
-    domain_tree: dict[str, dict[str, Path]],
-    guide_text: str,
-) -> str:
-    """Build the prompt used for AI route decisions."""
-    majors = policy.get("major_domains", {})
-    existing = {
-        major_slug: sorted(subdomains.keys())
-        for major_slug, subdomains in domain_tree.items()
-    }
-    guide_block = guide_text.strip() or "No routing guide available."
-    return (
-        "You are a knowledge base routing assistant. "
-        "Choose a major domain and optionally a subdomain for the query. "
-        "Follow the routing guide carefully. Prefer existing subdomains when they fit. "
-        "If the major domain is clear but no specific subdomain fits, leave subdomain empty instead of using general. "
-        "If the query does not fit any existing major domain, prefer creating a new major domain instead of using general.\n\n"
-        f"Routing guide:\n{guide_block}\n\n"
-        f"Routing policy JSON:\n{json.dumps(majors, ensure_ascii=False, indent=2)}\n\n"
-        f"Existing directory tree JSON:\n{json.dumps(existing, ensure_ascii=False, indent=2)}\n\n"
-        f"Query: {query}\n\n"
-        "Respond with valid JSON only:\n"
-        '{"major_domain":"...","subdomain":"" or "...","reason":"..."}'
+def _build_routing_prompt(context: dict) -> tuple[str, str]:
+    """Build the system prompt and user message for AI routing.
+
+    Returns (system_prompt, user_message).
+    """
+    skill_text = load_routing_skill()
+    user_json = json.dumps(
+        {
+            "query": context["query"],
+            "card_title": context.get("card_title", ""),
+            "card_summary": context.get("card_summary", ""),
+            "existing_folders": context.get("existing_folders", {}),
+            "folder_contents": context.get("folder_contents", {}),
+        },
+        ensure_ascii=False,
+        indent=2,
     )
+    return skill_text, user_json
 
 
-def infer_domain_with_ai(
-    query: str,
-    policy: dict[str, object],
-    domain_tree: dict[str, dict[str, Path]],
-) -> dict[str, str] | None:
-    """Ask an LLM to decide a major domain and optional subdomain."""
-    prompt = _build_routing_prompt(query, policy, domain_tree, load_routing_guide())
-    text = _call_router_llm(prompt)
+def infer_domain_with_ai(context: dict) -> dict[str, str] | None:
+    """Ask an LLM to decide a major domain and optional subdomain.
+
+    Uses the routing skill as the system prompt and the routing context
+    (query + card info + folder summaries) as the user message.
+    """
+    system_prompt, user_message = _build_routing_prompt(context)
+    text = _call_router_llm(system_prompt, user_message)
     if text is None:
         return None
 
@@ -299,6 +481,9 @@ def infer_domain_with_ai(
     }
 
 
+# ── Fallback ───────────────────────────────────────────────────────
+
+
 def _propose_new_major_domain(query: str) -> str:
     """Build a conservative fallback major-domain slug from the query text."""
     normalized = query.strip().lower()
@@ -327,36 +512,36 @@ def _build_route(knowledge_root: Path, major_domain: str, subdomain: str | None)
     return route_slug, output_path, normalized_subdomain
 
 
+# ── Main entry points ──────────────────────────────────────────────
+
+
 def infer_domain_decision(
     query: str,
     knowledge_root: Path,
     use_ai_fallback: bool = True,
+    *,
+    card_title: str = "",
+    card_summary: str = "",
 ) -> dict[str, object]:
-    """Infer the full domain routing decision for a query."""
-    policy = load_routing_policy()
-    domain_tree = get_domain_tree(knowledge_root)
+    """Infer the full domain routing decision for a query.
 
-    matched = match_route(query, policy, domain_tree)
-    if matched is not None:
-        major_domain, subdomain = matched
-        route_slug, output_path, normalized_subdomain = _build_route(knowledge_root, major_domain, subdomain)
-        output_path.mkdir(parents=True, exist_ok=True)
-        clear_folder_cache()
-        return {
-            "major_domain": major_domain,
-            "subdomain": normalized_subdomain,
-            "route_slug": route_slug,
-            "output_path": output_path,
-            "decision_mode": "policy_match",
-            "reason": "Matched against routing policy and existing domain tree.",
-        }
+    Priority: AI primary → folder-name matching → heuristic fallback.
+    """
+    context = build_routing_context(query, knowledge_root, card_title, card_summary)
+    domain_tree = context.get("existing_folders", {})
 
+    # Reconstruct the actual domain_tree with Paths for routing
+    actual_tree = get_domain_tree(knowledge_root)
+
+    # Tier 1: AI primary routing
     if use_ai_fallback:
-        ai_choice = infer_domain_with_ai(query, policy, domain_tree)
-        if ai_choice is not None:
-            major_domain = str(ai_choice["major_domain"])
-            subdomain = str(ai_choice["subdomain"])
-            route_slug, output_path, normalized_subdomain = _build_route(knowledge_root, major_domain, subdomain)
+        ai_result = infer_domain_with_ai(context)
+        if ai_result is not None:
+            major_domain = str(ai_result["major_domain"])
+            subdomain = str(ai_result["subdomain"])
+            route_slug, output_path, normalized_subdomain = _build_route(
+                knowledge_root, major_domain, subdomain,
+            )
             output_path.mkdir(parents=True, exist_ok=True)
             clear_folder_cache()
             return {
@@ -364,13 +549,34 @@ def infer_domain_decision(
                 "subdomain": normalized_subdomain,
                 "route_slug": route_slug,
                 "output_path": output_path,
-                "decision_mode": "llm_policy",
-                "reason": ai_choice.get("reason", "AI selected the best matching route."),
+                "decision_mode": "ai_primary",
+                "reason": ai_result.get("reason", "AI selected the best matching route."),
             }
 
+    # Tier 2: Folder-name token matching (zero-config, no API)
+    matched = match_existing_folders(query, actual_tree)
+    if matched is not None:
+        major_domain, subdomain = matched
+        route_slug, output_path, normalized_subdomain = _build_route(
+            knowledge_root, major_domain, subdomain,
+        )
+        output_path.mkdir(parents=True, exist_ok=True)
+        clear_folder_cache()
+        return {
+            "major_domain": major_domain,
+            "subdomain": normalized_subdomain,
+            "route_slug": route_slug,
+            "output_path": output_path,
+            "decision_mode": "folder_match",
+            "reason": "Matched against existing folder names.",
+        }
+
+    # Tier 3: Heuristic fallback
     new_major_domain = _propose_new_major_domain(query)
     if new_major_domain != "general":
-        route_slug, output_path, normalized_subdomain = _build_route(knowledge_root, new_major_domain, None)
+        route_slug, output_path, normalized_subdomain = _build_route(
+            knowledge_root, new_major_domain, None,
+        )
         output_path.mkdir(parents=True, exist_ok=True)
         clear_folder_cache()
         return {
@@ -379,10 +585,12 @@ def infer_domain_decision(
             "route_slug": route_slug,
             "output_path": output_path,
             "decision_mode": "fallback_new_major",
-            "reason": "No stable existing major domain matched, so a new major domain root was created by default.",
+            "reason": "No AI or folder match available, created a new domain from the query.",
         }
 
-    route_slug, output_path, normalized_subdomain = _build_route(knowledge_root, "general", None)
+    route_slug, output_path, normalized_subdomain = _build_route(
+        knowledge_root, "general", None,
+    )
     output_path.mkdir(parents=True, exist_ok=True)
     clear_folder_cache()
     return {
@@ -391,21 +599,24 @@ def infer_domain_decision(
         "route_slug": route_slug,
         "output_path": output_path,
         "decision_mode": "fallback_general",
-        "reason": "No policy match or AI route available.",
+        "reason": "No AI, folder match, or heuristic domain available.",
     }
-
-
-# ── Main entry point ───────────────────────────────────────────────
 
 
 def infer_domain(
     query: str,
     knowledge_root: Path,
     use_ai_fallback: bool = True,
+    *,
+    card_title: str = "",
+    card_summary: str = "",
 ) -> tuple[str, Path]:
     """Infer the route slug and output path for a query.
 
     Returns (route_slug, output_path).
     """
-    decision = infer_domain_decision(query, knowledge_root, use_ai_fallback=use_ai_fallback)
+    decision = infer_domain_decision(
+        query, knowledge_root, use_ai_fallback=use_ai_fallback,
+        card_title=card_title, card_summary=card_summary,
+    )
     return str(decision["route_slug"]), Path(str(decision["output_path"]))

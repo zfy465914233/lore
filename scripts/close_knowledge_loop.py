@@ -261,7 +261,11 @@ def build_knowledge_card(
     index_path: Path | None = None,
 ) -> Path:
     """Build a knowledge card from research evidence and structured answer."""
-    routing = _infer_domain_decision(query, knowledge_root)
+    card_summary = str(answer_data.get("answer", ""))[:500]
+    routing = _infer_domain_decision(
+        query, knowledge_root,
+        card_title=query, card_summary=card_summary,
+    )
     major_domain = str(routing["major_domain"])
     topic = str(routing.get("subdomain", "")).strip()
     output_dir = Path(str(routing["output_path"]))

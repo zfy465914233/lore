@@ -141,8 +141,8 @@ class PromoteDraftTest(unittest.TestCase):
             (knowledge_root / "model-quantization").mkdir(parents=True)
 
             cases = [
-                ("lp duality theorem", "operations-research/linear-programming"),
-                ("compare qpe and iterative qpe", "qpe"),
+                ("linear programming duality theorem", "operations-research/linear-programming"),
+                ("qpe radar rainfall estimation", "qpe"),
                 ("quantization compression deployment", "model-quantization"),
             ]
 

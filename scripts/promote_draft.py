@@ -50,9 +50,10 @@ def infer_card_type(query: str) -> str:
     return "knowledge"
 
 
-def infer_domain_folder(query: str, knowledge_root: Path) -> str:
+def infer_domain_folder(query: str, knowledge_root: Path, draft_text: str = "") -> str:
     """Infer domain folder using dynamic matching."""
-    slug, _path = _infer_domain(query, knowledge_root)
+    summary = draft_text[:500] if draft_text else ""
+    slug, _path = _infer_domain(query, knowledge_root, card_title=query, card_summary=summary)
     return slug
 
 
@@ -101,7 +102,7 @@ def main() -> int:
     text = args.draft.read_text(encoding="utf-8")
     query = parse_query(text)
     card_type = infer_card_type(query)
-    folder = infer_domain_folder(query, args.knowledge_root)
+    folder = infer_domain_folder(query, args.knowledge_root, draft_text=text)
     citation_ids = collect_citation_ids(text)
     direct_support = extract_section(text, "Direct Support")
 

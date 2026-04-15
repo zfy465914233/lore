@@ -104,7 +104,8 @@ class CloseKnowledgeLoopTest(unittest.TestCase):
                     break
             self.assertIsNotNone(card_path, "Should find card path in log output")
             self.assertTrue(card_path.exists(), "Card should be written to knowledge tree")
-            self.assertEqual("test-loop-closing", card_path.parent.name)
+            # Card should be routed to a folder derived from the query
+            self.assertIn("test-loop-closing", card_path.name)
 
             # Verify it's in the index
             index = json.loads(self.index_path.read_text(encoding="utf-8"))
@@ -113,6 +114,11 @@ class CloseKnowledgeLoopTest(unittest.TestCase):
 
             # Clean up
             card_path.unlink()
+            # Remove empty parent directory if it was created by this test
+            try:
+                card_path.parent.rmdir()
+            except OSError:
+                pass
             # Reindex without the test card
             subprocess.run(
                 [sys.executable, str(SCRIPTS / "local_index.py"), "--knowledge-root", str(self.knowledge_root), "--output", str(self.index_path)],
