@@ -13,17 +13,17 @@ if str(ROOT) not in sys.path:
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-import lore_config
+import scholar_config
 from mcp_server import query_knowledge, save_research, list_knowledge, capture_answer
 
 # Force config to always resolve to scholar-agent's own directories
 # regardless of cwd, so tests don't leak files into parent projects.
 _TEST_INDEX = ROOT / "indexes" / "local" / "index.json"
 _TEST_KNOWLEDGE = ROOT / "tests" / "fixtures"
-lore_config._config_cache = {
+scholar_config._config_cache = {
     "knowledge_dir": str(_TEST_KNOWLEDGE),
     "index_path": str(_TEST_INDEX),
-    "lore_dir": str(ROOT),
+    "scholar_dir": str(ROOT),
 }
 
 

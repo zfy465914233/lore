@@ -33,7 +33,7 @@ if str(SCRIPTS) not in sys.path:
 from common import safe_slug, extract_entities
 from domain_router import infer_domain as _infer_domain
 from domain_router import infer_domain_decision as _infer_domain_decision
-from lore_config import get_knowledge_dir, get_index_path
+from scholar_config import get_knowledge_dir, get_index_path
 from local_retrieve import retrieve as bm25_retrieve
 
 logger = logging.getLogger(__name__)

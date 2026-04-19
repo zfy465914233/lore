@@ -1,5 +1,5 @@
 {
-  "_comment": "Example configuration for Scholar Agent. Copy to .lore.json and customize.",
+  "_comment": "Example configuration for Scholar Agent. Copy to .scholar.json and customize.",
 
   "knowledge_dir": "../knowledge",
   "index_path": "./indexes/local/index.json",

@@ -1,4 +1,4 @@
-"""Unified exception hierarchy for Lore Agent.
+"""Unified exception hierarchy for Scholar Agent.
 
 All modules should raise these instead of generic RuntimeError/ValueError
 so callers can handle errors uniformly.
@@ -7,25 +7,25 @@ so callers can handle errors uniformly.
 from __future__ import annotations
 
 
-class LoreError(Exception):
-    """Base exception for all Lore Agent errors."""
+class ScholarError(Exception):
+    """Base exception for all Scholar Agent errors."""
 
 
-class IndexNotFoundError(LoreError):
+class IndexNotFoundError(ScholarError):
     """The knowledge index file does not exist or is unreadable."""
 
 
-class ResearchError(LoreError):
+class ResearchError(ScholarError):
     """Error during web research or evidence gathering."""
 
 
-class SynthesisError(LoreError):
+class SynthesisError(ScholarError):
     """Error during answer synthesis (LLM call, response parsing)."""
 
 
-class ValidationError(LoreError):
+class ValidationError(ScholarError):
     """Schema or input validation failure."""
 
 
-class ConfigurationError(LoreError):
+class ConfigurationError(ScholarError):
     """Configuration file is missing, malformed, or inconsistent."""

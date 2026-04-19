@@ -107,7 +107,7 @@ class LoadJsonTest(unittest.TestCase):
         Path(f.name).unlink()
 
     def test_missing_file(self) -> None:
-        result = load_json(Path("/tmp/nonexistent_lore_test.json"))
+        result = load_json(Path("/tmp/nonexistent_scholar_test.json"))
         self.assertEqual({}, result)
 
     def test_invalid_json(self) -> None:

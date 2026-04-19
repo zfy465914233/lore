@@ -13,15 +13,15 @@ if str(ROOT) not in sys.path:
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-import lore_config
+import scholar_config
 from mcp_server import list_knowledge, query_knowledge, save_research
 
 _TEST_INDEX = ROOT / "indexes" / "local" / "index.json"
 _TEST_KNOWLEDGE = ROOT / "knowledge"
-lore_config._config_cache = {
+scholar_config._config_cache = {
     "knowledge_dir": str(_TEST_KNOWLEDGE),
     "index_path": str(_TEST_INDEX),
-    "lore_dir": str(ROOT),
+    "scholar_dir": str(ROOT),
 }
 
 

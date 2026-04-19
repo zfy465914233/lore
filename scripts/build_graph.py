@@ -88,7 +88,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>Lore Agent — Knowledge Graph</title>
+<title>Scholar Agent — Knowledge Graph</title>
 <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 <style>
   body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #e0e0e0; }
@@ -100,7 +100,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 </head>
 <body>
 <div id="info">
-  <h3>Lore Knowledge Graph</h3>
+  <h3>Scholar Knowledge Graph</h3>
   <span>NODES_COUNT nodes · EDGES_COUNT edges</span>
 </div>
 <div id="graph"></div>

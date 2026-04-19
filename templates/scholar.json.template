@@ -1,7 +1,7 @@
 {
   "knowledge_dir": "./knowledge",
   "index_path": "./indexes/local/index.json",
-  "lore_dir": "./scholar-agent",
+  "scholar_dir": "./scholar-agent",
   "academic": {
     "paper_notes_dir": "./paper-notes",
     "research_interests": {

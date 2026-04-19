@@ -234,7 +234,7 @@ def search_semantic_scholar(
         "limit": 100,
         "fields": SEMANTIC_SCHOLAR_FIELDS,
     }
-    headers = {"User-Agent": "LoreScholar/1.0"}
+    headers = {"User-Agent": "ScholarAgent/1.0"}
     if S2_API_KEY:
         headers["x-api-key"] = S2_API_KEY
 

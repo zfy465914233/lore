@@ -29,7 +29,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from exceptions import LoreError, ResearchError, SynthesisError
+from exceptions import ScholarError, ResearchError, SynthesisError
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"

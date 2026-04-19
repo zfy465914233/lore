@@ -19,11 +19,11 @@ mkdir -p "$VAULT_DIR/.claude/skills"
 
 # 2. Copy config templates (don't overwrite existing)
 echo "[2/4] Setting up config files..."
-if [ ! -f "$VAULT_DIR/.lore.json" ]; then
-  cp "$SCRIPT_DIR/templates/lore.json.template" "$VAULT_DIR/.lore.json"
-  echo "  Created .lore.json"
+if [ ! -f "$VAULT_DIR/.scholar.json" ]; then
+  cp "$SCRIPT_DIR/templates/scholar.json.template" "$VAULT_DIR/.scholar.json"
+  echo "  Created .scholar.json"
 else
-  echo "  .lore.json already exists, skipping"
+  echo "  .scholar.json already exists, skipping"
 fi
 
 if [ ! -f "$VAULT_DIR/.mcp.json" ]; then
@@ -70,7 +70,7 @@ echo "  $VAULT_DIR/"
 echo "  ├── .claude/"
 echo "  │   ├── settings.local.json  # MCP + skill permissions"
 echo "  │   └── skills/              # Project-local skills"
-echo "  ├── .lore.json               # Scholar-agent config"
+echo "  ├── .scholar.json              # Scholar-agent config"
 echo "  ├── .mcp.json                # MCP server config"
 echo "  ├── knowledge/               # Knowledge cards"
 echo "  ├── paper-notes/             # Paper analysis notes"

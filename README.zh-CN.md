@@ -49,6 +49,16 @@ Scholar Agent 内置完整的学术论文研究管线：
 
 ## 快速开始
 
+### 嵌入到已有项目
+
+```bash
+cd my-project && git clone https://github.com/zfy465914233/scholar-agent.git
+bash scholar-agent/setup.sh
+# 重启 Claude Code 以激活
+```
+
+这将创建目录结构、复制配置模板、安装技能并构建知识索引。
+
 ### 作为独立项目使用
 
 ```bash
@@ -69,15 +79,6 @@ MCP 配置已预置，启动即用：
 - **Claude Code**：`.mcp.json` 已配好，`cd` 到项目目录启动即可
 - **VS Code Copilot**：`.vscode/mcp.json` 已配好，打开项目启用 agent 模式即可
 
-### 嵌入到已有项目
-
-```bash
-cp -r scholar-agent/ your-project/scholar-agent/
-cd your-project && python scholar-agent/setup_mcp.py
-```
-
-自动生成配置。知识库在**你的项目里**，不在 scholar-agent 内部。
-
 ## MCP 工具
 
 ### 核心工具（始终可用）
@@ -91,7 +92,7 @@ cd your-project && python scholar-agent/setup_mcp.py
 | `ingest_source` | 摄入 URL 或文本到知识库 |
 | `build_graph` | 生成交互式知识图谱（vis.js） |
 
-### 学术工具（设置 `LORE_ACADEMIC=1` 启用）
+### 学术工具（设置 `SCHOLAR_ACADEMIC=1` 启用）
 
 | 工具 | 说明 |
 |------|------|
@@ -105,9 +106,9 @@ cd your-project && python scholar-agent/setup_mcp.py
 
 ## 配置
 
-### .lore.json
+### .scholar.json
 
-`.lore.json` 配置知识库路径和学术研究设置。完整示例见 [`.lore.example.json`](.lore.example.json)。
+`.scholar.json` 配置知识库路径和学术研究设置。完整示例见 [`.scholar.example.json`](.scholar.example.json)。
 
 ### 环境变量
 
@@ -115,7 +116,7 @@ cd your-project && python scholar-agent/setup_mcp.py
 
 | 变量 | 必需 | 说明 |
 |------|------|------|
-| `LORE_ACADEMIC` | 否 | 设为 `1` 启用学术工具 |
+| `SCHOLAR_ACADEMIC` | 否 | 设为 `1` 启用学术工具 |
 | `S2_API_KEY` | 否 | Semantic Scholar API key（[免费申请](https://api.semanticscholar.org/)） |
 | `LLM_API_KEY` | 否 | LLM API key（用于高级合成管线） |
 | `SEARXNG_BASE_URL` | 否 | SearXNG 地址（默认 `http://localhost:8080`） |
@@ -128,7 +129,7 @@ scholar-agent/
 ├── setup_mcp.py               # 嵌入已有项目
 ├── pyproject.toml             # 包配置
 ├── docker-compose.yml         # SearXNG
-├── .lore.json                 # 项目与学术配置
+├── .scholar.json               # 项目与学术配置
 ├── schemas/                   # 答案 + 证据 JSON schema
 ├── scripts/
 │   ├── academic/              # 学术研究模块
@@ -139,7 +140,7 @@ scholar-agent/
 │   │   ├── image_extractor.py # PDF 图表提取
 │   │   ├── note_linker.py     # Wiki-link 发现 + 关键词链接
 │   │   └── daily_workflow.py  # 每日推荐管线
-│   ├── lore_config.py         # 配置读取
+│   ├── scholar_config.py       # 配置读取
 │   ├── local_index.py         # BM25 索引构建
 │   ├── local_retrieve.py      # 知识检索
 │   ├── close_knowledge_loop.py # 知识卡片构建

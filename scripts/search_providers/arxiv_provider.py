@@ -1,4 +1,4 @@
-"""arXiv search provider for the Lore Scholar search pipeline.
+"""arXiv search provider for the Scholar Agent search pipeline.
 
 Wraps the ``academic.arxiv_search`` module to implement the
 :class:`SearchProvider` protocol, making arXiv + Semantic Scholar

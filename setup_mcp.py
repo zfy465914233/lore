@@ -6,7 +6,7 @@ Usage:
   python scholar-agent/setup_mcp.py
 
 This will:
-  1. Create .lore.json config pointing knowledge to the parent project
+  1. Create .scholar.json config pointing knowledge to the parent project
   2. Create knowledge/ and indexes/ directories in the parent project
   3. Add Scholar Agent MCP server to .mcp.json (Claude Code)
   4. Add Scholar Agent MCP server to .vscode/mcp.json (VS Code Copilot)
@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 
-LORE_DIR_NAME = "scholar-agent"
+SCHOLAR_DIR_NAME = "scholar-agent"
 
 
 def _detect_mcp_command() -> tuple[str, list[str]]:
@@ -60,7 +60,7 @@ def _detect_mcp_command() -> tuple[str, list[str]]:
     )
 
 
-def get_lore_dir() -> Path:
+def get_scholar_dir() -> Path:
     """Find the scholar-agent directory relative to cwd."""
     # If cwd is inside scholar-agent itself
     cwd = Path.cwd()
@@ -68,7 +68,7 @@ def get_lore_dir() -> Path:
         return cwd
 
     # If scholar-agent is a subdirectory of cwd
-    candidate = cwd / LORE_DIR_NAME
+    candidate = cwd / SCHOLAR_DIR_NAME
     if candidate.is_dir() and (candidate / "mcp_server.py").exists():
         return candidate
 
@@ -76,10 +76,10 @@ def get_lore_dir() -> Path:
     sys.exit(1)
 
 
-def setup_claude_code(parent_root: Path, lore_dir: Path) -> None:
+def setup_claude_code(parent_root: Path, scholar_dir: Path) -> None:
     """Inject MCP config into .mcp.json for Claude Code."""
     mcp_path = parent_root / ".mcp.json"
-    lore_relative = lore_dir.relative_to(parent_root)
+    scholar_relative = scholar_dir.relative_to(parent_root)
     cmd, base_args = _detect_mcp_command()
 
     if mcp_path.exists():
@@ -92,19 +92,19 @@ def setup_claude_code(parent_root: Path, lore_dir: Path) -> None:
 
     config["mcpServers"]["scholar-agent"] = {
         "command": cmd,
-        "args": base_args + [f"{lore_relative}/mcp_server.py"],
+        "args": base_args + [f"{scholar_relative}/mcp_server.py"],
     }
 
     mcp_path.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"  Updated {mcp_path.relative_to(parent_root)} (using {cmd})")
 
 
-def setup_vscode(parent_root: Path, lore_dir: Path) -> None:
+def setup_vscode(parent_root: Path, scholar_dir: Path) -> None:
     """Inject MCP config into .vscode/mcp.json for VS Code Copilot."""
     vscode_dir = parent_root / ".vscode"
     vscode_dir.mkdir(exist_ok=True)
     mcp_path = vscode_dir / "mcp.json"
-    lore_relative = lore_dir.relative_to(parent_root)
+    scholar_relative = scholar_dir.relative_to(parent_root)
     cmd, base_args = _detect_mcp_command()
 
     if mcp_path.exists():
@@ -118,14 +118,14 @@ def setup_vscode(parent_root: Path, lore_dir: Path) -> None:
     config["servers"]["scholar-agent"] = {
         "type": "stdio",
         "command": cmd,
-        "args": base_args + [f"{lore_relative}/mcp_server.py"],
+        "args": base_args + [f"{scholar_relative}/mcp_server.py"],
     }
 
     mcp_path.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"  Updated {mcp_path.relative_to(parent_root)} (using {cmd})")
 
 
-def setup_claude_md(parent_root: Path, lore_dir: Path) -> None:
+def setup_claude_md(parent_root: Path, scholar_dir: Path) -> None:
     """Add a CLAUDE.md snippet — only if Claude Code is detected."""
     claude_md_path = parent_root / "CLAUDE.md"
 
@@ -148,8 +148,8 @@ def setup_claude_md(parent_root: Path, lore_dir: Path) -> None:
 
     if claude_md_path.exists():
         content = claude_md_path.read_text(encoding="utf-8")
-        if "# Scholar Agent" in content or "# Lore Agent" in content or "query_knowledge" in content:
-            print(f"  CLAUDE.md already contains Lore instructions, skipping")
+        if "# Scholar Agent" in content or "query_knowledge" in content:
+            print(f"  CLAUDE.md already contains Scholar Agent instructions, skipping")
             return
         content = content.rstrip() + "\n\n" + snippet
     else:
@@ -159,9 +159,9 @@ def setup_claude_md(parent_root: Path, lore_dir: Path) -> None:
     print(f"  Updated {claude_md_path.relative_to(parent_root)}")
 
 
-def setup_lore_config(parent_root: Path, lore_dir: Path) -> None:
-    """Create .lore.json inside scholar-agent/ with paths relative to scholar-agent/."""
-    config_path = lore_dir / ".lore.json"
+def setup_scholar_config(parent_root: Path, scholar_dir: Path) -> None:
+    """Create .scholar.json inside scholar-agent/ with paths relative to scholar-agent/."""
+    config_path = scholar_dir / ".scholar.json"
 
     config = {
         "knowledge_dir": "../knowledge",
@@ -179,24 +179,24 @@ def setup_lore_config(parent_root: Path, lore_dir: Path) -> None:
     # Create knowledge/ at parent root, indexes/ inside scholar-agent/
     knowledge_dir = parent_root / "knowledge"
     knowledge_dir.mkdir(exist_ok=True)
-    (lore_dir / "indexes" / "local").mkdir(parents=True, exist_ok=True)
+    (scholar_dir / "indexes" / "local").mkdir(parents=True, exist_ok=True)
 
 
 def main() -> int:
-    lore_dir = get_lore_dir()
-    if lore_dir == Path.cwd():
-        parent_root = lore_dir.parent
+    scholar_dir = get_scholar_dir()
+    if scholar_dir == Path.cwd():
+        parent_root = scholar_dir.parent
     else:
         parent_root = Path.cwd()
 
     print(f"Setting up Scholar Agent for: {parent_root}")
-    print(f"Scholar Agent directory: {lore_dir}")
+    print(f"Scholar Agent directory: {scholar_dir}")
     print()
 
-    setup_lore_config(parent_root, lore_dir)
-    setup_claude_code(parent_root, lore_dir)
-    setup_vscode(parent_root, lore_dir)
-    setup_claude_md(parent_root, lore_dir)
+    setup_scholar_config(parent_root, scholar_dir)
+    setup_claude_code(parent_root, scholar_dir)
+    setup_vscode(parent_root, scholar_dir)
+    setup_claude_md(parent_root, scholar_dir)
 
     print()
     print("Done! Restart Claude Code or VS Code to activate the MCP server.")

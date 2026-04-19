@@ -8,7 +8,7 @@ Tools:
   - ingest_source: Ingest a URL or raw text into the knowledge base
   - build_graph: Build an interactive knowledge graph visualization
 
-Academic tools (set LORE_ACADEMIC=1 to enable):
+Academic tools (set SCHOLAR_ACADEMIC=1 to enable):
   - search_papers: Search arXiv + Semantic Scholar with scoring
   - search_conf_papers: Search conference papers via DBLP + S2 enrichment
   - analyze_paper: Generate structured markdown notes for a paper
@@ -59,13 +59,13 @@ from close_knowledge_loop import (
     validate_answer_schema,
 )
 from close_knowledge_loop import reindex as _reindex
-from lore_config import get_knowledge_dir, get_index_path, get_research_interests
+from scholar_config import get_knowledge_dir, get_index_path, get_research_interests
 from local_retrieve import retrieve
 
 logger = logging.getLogger(__name__)
 
-# Academic tools module toggle (set LORE_ACADEMIC=1 to enable)
-LORE_ACADEMIC = os.environ.get("LORE_ACADEMIC", "").strip() in ("1", "true", "yes")
+# Academic tools module toggle (set SCHOLAR_ACADEMIC=1 to enable)
+SCHOLAR_ACADEMIC = os.environ.get("SCHOLAR_ACADEMIC", "").strip() in ("1", "true", "yes")
 
 try:
     from fastmcp import FastMCP
@@ -460,10 +460,10 @@ def build_graph() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Academic tools (controlled by LORE_ACADEMIC env var)
+# Academic tools (controlled by SCHOLAR_ACADEMIC env var)
 # ---------------------------------------------------------------------------
 
-if LORE_ACADEMIC:
+if SCHOLAR_ACADEMIC:
 
     @tool
     def search_papers(
@@ -505,7 +505,7 @@ if LORE_ACADEMIC:
         if config_path:
             config = _load_config(config_path)
         if not config:
-            # Try research interests from .lore.json
+            # Try research interests from .scholar.json
             interests = get_research_interests()
             if interests.get("research_domains"):
                 config = {
@@ -650,7 +650,7 @@ if LORE_ACADEMIC:
         Args:
             paper_json: JSON string with paper metadata.
             output_dir: Directory for output notes. Defaults to
-                knowledge_dir/paper-notes under the configured lore root.
+                knowledge_dir/paper-notes under the configured scholar root.
             language: Note language — \"zh\" (Chinese, default) or \"en\" (English).
             all_papers_json: Optional JSON array of other paper dicts for
                 finding related papers via wiki-links.
@@ -1009,7 +1009,7 @@ if LORE_ACADEMIC:
             "keywords_indexed": len(keyword_index),
         }, ensure_ascii=False, indent=2)
 
-    logger.info("Academic tools enabled (LORE_ACADEMIC=%s)", LORE_ACADEMIC)
+    logger.info("Academic tools enabled (SCHOLAR_ACADEMIC=%s)", SCHOLAR_ACADEMIC)
 
 
 def main():

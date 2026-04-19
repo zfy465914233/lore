@@ -1,4 +1,4 @@
-"""Shared utilities for Lore Agent scripts.
+"""Shared utilities for Scholar Agent scripts.
 
 Consolidates duplicated patterns across the codebase:
   - parse_frontmatter: YAML frontmatter parsing (was in 3 files)

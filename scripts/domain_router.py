@@ -395,15 +395,15 @@ def match_route(
 
 
 def _router_api_url() -> str:
-    return os.getenv("LORE_ROUTER_API_URL") or os.getenv("LLM_API_URL") or "https://api.openai.com/v1"
+    return os.getenv("SCHOLAR_ROUTER_API_URL") or os.getenv("LLM_API_URL") or "https://api.openai.com/v1"
 
 
 def _router_api_key() -> str:
-    return os.getenv("LORE_ROUTER_API_KEY") or os.getenv("LLM_API_KEY") or os.getenv("GITHUB_TOKEN") or ""
+    return os.getenv("SCHOLAR_ROUTER_API_KEY") or os.getenv("LLM_API_KEY") or os.getenv("GITHUB_TOKEN") or ""
 
 
 def _router_model() -> str:
-    return os.getenv("LORE_ROUTER_MODEL") or os.getenv("LLM_MODEL") or "gpt-4o-mini"
+    return os.getenv("SCHOLAR_ROUTER_MODEL") or os.getenv("LLM_MODEL") or "gpt-4o-mini"
 
 
 def _call_router_llm(system_prompt: str, user_message: str) -> str | None:

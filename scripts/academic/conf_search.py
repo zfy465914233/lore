@@ -102,11 +102,11 @@ def search_dblp_conference(
             for attempt in range(max_retries):
                 try:
                     if HAS_REQUESTS:
-                        resp = _requests.get(url, headers={"User-Agent": "LoreScholar/1.0"}, timeout=60)
+                        resp = _requests.get(url, headers={"User-Agent": "ScholarAgent/1.0"}, timeout=60)
                         resp.raise_for_status()
                         data = resp.json()
                     else:
-                        req = urllib.request.Request(url, headers={"User-Agent": "LoreScholar/1.0"})
+                        req = urllib.request.Request(url, headers={"User-Agent": "ScholarAgent/1.0"})
                         with urllib.request.urlopen(req, timeout=60) as resp:
                             data = json.loads(resp.read().decode("utf-8"))
 
@@ -218,7 +218,7 @@ def enrich_with_semantic_scholar(
             p["s2_matched"] = False
         return papers
 
-    headers = {"User-Agent": "LoreScholar/1.0"}
+    headers = {"User-Agent": "ScholarAgent/1.0"}
     if S2_API_KEY:
         headers["x-api-key"] = S2_API_KEY
 

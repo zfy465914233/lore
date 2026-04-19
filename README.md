@@ -45,6 +45,16 @@ Scholar Agent includes a comprehensive academic paper research pipeline:
 
 ## Quick Start
 
+### Embed into an existing project
+
+```bash
+cd my-project && git clone https://github.com/zfy465914233/scholar-agent.git
+bash scholar-agent/setup.sh
+# Restart Claude Code to activate
+```
+
+This will create the directory structure, copy config templates, install skills, and build the knowledge index.
+
 ### Use as a standalone project
 
 ```bash
@@ -65,15 +75,6 @@ MCP configs are pre-configured:
 - **Claude Code**: `.mcp.json` is ready. `cd` into the project and start Claude Code.
 - **VS Code Copilot**: `.vscode/mcp.json` is ready. Open the project, enable agent mode.
 
-### Embed into an existing project
-
-```bash
-cp -r scholar-agent/ your-project/scholar-agent/
-cd your-project && python scholar-agent/setup_mcp.py
-```
-
-Auto-generates config. Knowledge lives in **your project**, not inside scholar-agent.
-
 ## MCP Tools
 
 ### Core Tools (always available)
@@ -87,7 +88,7 @@ Auto-generates config. Knowledge lives in **your project**, not inside scholar-a
 | `ingest_source` | Ingest a URL or raw text into the knowledge base |
 | `build_graph` | Generate an interactive knowledge graph (vis.js) |
 
-### Academic Tools (set `LORE_ACADEMIC=1` to enable)
+### Academic Tools (set `SCHOLAR_ACADEMIC=1` to enable)
 
 | Tool | Description |
 |------|-------------|
@@ -101,9 +102,9 @@ Auto-generates config. Knowledge lives in **your project**, not inside scholar-a
 
 ## Configuration
 
-### .lore.json
+### .scholar.json
 
-The `.lore.json` file configures knowledge paths and academic research settings. See [`.lore.example.json`](.lore.example.json) for a full example with comments.
+The `.scholar.json` file configures knowledge paths and academic research settings. See [`.scholar.example.json`](.scholar.example.json) for a full example with comments.
 
 Key sections:
 - `knowledge_dir` — Path to knowledge cards directory
@@ -117,7 +118,7 @@ Copy `.env.example` to `.env` and configure:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `LORE_ACADEMIC` | No | Set to `1` to enable academic tools |
+| `SCHOLAR_ACADEMIC` | No | Set to `1` to enable academic tools |
 | `S2_API_KEY` | No | Semantic Scholar API key ([get one free](https://api.semanticscholar.org/)) |
 | `LLM_API_KEY` | No | LLM API key for advanced synthesis pipeline |
 | `SEARXNG_BASE_URL` | No | SearXNG URL for web research (default: `http://localhost:8080`) |
@@ -130,7 +131,7 @@ scholar-agent/
 ├── setup_mcp.py               # Embed into existing projects
 ├── pyproject.toml             # Package configuration
 ├── docker-compose.yml         # SearXNG
-├── .lore.json                 # Project & academic configuration
+├── .scholar.json               # Project & academic configuration
 ├── schemas/                   # Answer + evidence JSON schemas
 ├── scripts/
 │   ├── academic/              # Academic research modules
@@ -141,7 +142,7 @@ scholar-agent/
 │   │   ├── image_extractor.py # Figure extraction from PDFs
 │   │   ├── note_linker.py     # Wiki-link discovery + keyword linking
 │   │   └── daily_workflow.py  # Daily recommendation pipeline
-│   ├── lore_config.py         # Configuration reader
+│   ├── scholar_config.py       # Configuration reader
 │   ├── local_index.py         # BM25 index builder
 │   ├── local_retrieve.py      # Knowledge retrieval
 │   ├── close_knowledge_loop.py # Knowledge card builder
