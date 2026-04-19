@@ -1,0 +1,6 @@
+# Core dependencies
+jsonschema>=4.23,<5
+fastmcp>=2.0
+
+# Optional: Semantic retrieval with local embedding model
+# sentence-transformers>=3.0

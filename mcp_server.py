@@ -1,0 +1,451 @@
+"""MCP server exposing optimizer knowledge tools to Claude Code and Copilot.
+
+Tools:
+  - query_knowledge: Search the local knowledge base
+  - save_research: Persist structured research results as a knowledge card
+  - list_knowledge: Browse all knowledge cards, optionally filtered by topic
+
+Usage:
+  # Direct run (for testing):
+  python mcp_server.py
+
+  # Via FastMCP CLI:
+  fastmcp run mcp_server.py
+
+  # Via uv (zero install):
+  uv run --with fastmcp fastmcp run mcp_server.py
+
+Configuration — add to .mcp.json in the project root:
+  {
+    "mcpServers": {
+      "optimizer": {
+        "command": "uv",
+        "args": ["run", "--with", "fastmcp", "fastmcp", "run", "mcp_server.py"]
+      }
+    }
+  }
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import sys
+import time
+from pathlib import Path
+
+# Ensure scripts/ is importable
+ROOT = Path(__file__).resolve().parent
+SCRIPTS = ROOT / "scripts"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+
+from close_knowledge_loop import (
+    build_knowledge_card,
+    infer_domain,
+    validate_answer_schema,
+)
+from close_knowledge_loop import reindex as _reindex
+from lore_config import get_knowledge_dir, get_index_path
+from local_retrieve import retrieve
+
+logger = logging.getLogger(__name__)
+
+try:
+    from fastmcp import FastMCP
+    mcp = FastMCP("lore")
+    tool = mcp.tool
+except ImportError:
+    # Allow running without fastmcp — decorators become no-ops
+    mcp = None  # type: ignore[assignment]
+    def tool(fn):  # type: ignore[misc]
+        return fn
+
+
+def _stale_marker_path(index_path: Path) -> Path:
+    return index_path.with_suffix(index_path.suffix + ".stale")
+
+
+def _refresh_lock_path(index_path: Path) -> Path:
+    return index_path.with_suffix(index_path.suffix + ".lock")
+
+
+def _mark_index_stale(index_path: Path) -> None:
+    marker = _stale_marker_path(index_path)
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text("stale\n", encoding="utf-8")
+
+
+def _clear_index_stale(index_path: Path) -> None:
+    marker = _stale_marker_path(index_path)
+    try:
+        marker.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def _acquire_refresh_lock(lock_path: Path) -> bool:
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        return False
+    else:
+        os.close(fd)
+        return True
+
+
+def _release_refresh_lock(lock_path: Path) -> None:
+    try:
+        lock_path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def _ensure_index_ready() -> tuple[Path, bool, str | None]:
+    index_path = get_index_path()
+    marker = _stale_marker_path(index_path)
+    needs_refresh = marker.exists() or not index_path.exists()
+    if not needs_refresh:
+        return index_path, False, None
+
+    lock_path = _refresh_lock_path(index_path)
+    if not _acquire_refresh_lock(lock_path):
+        deadline = time.time() + 2.0
+        while time.time() < deadline:
+            if not lock_path.exists():
+                if not marker.exists() or index_path.exists():
+                    return index_path, True, None
+                break
+            time.sleep(0.05)
+        return index_path, True, "Index refresh is already in progress; retry the request in a moment."
+
+    try:
+        reindex_ok = _reindex(get_knowledge_dir(), index_path)
+        if reindex_ok:
+            _clear_index_stale(index_path)
+            return index_path, True, None
+
+        logger.warning("lazy reindex failed for %s", index_path)
+        if not index_path.exists():
+            return index_path, True, "Knowledge index not found and automatic refresh failed."
+        return index_path, True, "Automatic refresh failed; serving the last available index."
+    finally:
+        _release_refresh_lock(lock_path)
+
+
+@tool
+def query_knowledge(query: str, limit: int = 5) -> str:
+    """Search the local knowledge base for relevant information.
+
+    Returns top-k knowledge cards matching the query, with scores and content.
+    Use this to find existing knowledge before doing web research.
+
+    Args:
+        query: The search query in natural language.
+        limit: Maximum number of results to return (default 5).
+    """
+    if not isinstance(limit, int) or limit < 1 or limit > 50:
+        return json.dumps({"error": "limit must be an integer between 1 and 50", "results": []})
+
+    index_path, refreshed, refresh_error = _ensure_index_ready()
+
+    if not index_path.exists():
+        return json.dumps({
+            "error": refresh_error or "Knowledge index not found. Run local_index.py first.",
+            "results": [],
+        })
+
+    result = retrieve(query, index_path, limit)
+    if refresh_error:
+        result["warning"] = refresh_error
+    if refreshed:
+        result["index_refreshed"] = True
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+@tool
+def save_research(query: str, answer_json: str) -> str:
+    """Save structured research results as a knowledge card in the local knowledge base.
+
+    The answer_json must conform to schemas/answer.schema.json:
+    {
+      "answer": "detailed answer text",
+      "supporting_claims": [{"claim": "...", "evidence_ids": ["..."], "confidence": "high|medium|low"}],
+      "inferences": ["..."],
+      "uncertainty": ["..."],
+      "missing_evidence": ["..."],
+      "suggested_next_steps": ["..."],
+      "visual_aids": [{"type": "mermaid|image_url|image_path", "content": "...", "caption": "...", "alt_text": "..."}]
+    }
+
+    When to include visual_aids (auto-judge by topic):
+    - Processes / workflows / data flow → mermaid flowchart or sequence diagram
+    - Architecture / system design → mermaid graph or class diagram
+    - Comparisons or hierarchies → mermaid diagram or table
+    - Spatial / geometric concepts → image_url or mermaid
+    - Pure definitions or simple facts → omit visual_aids
+
+    When sources contain useful images (charts, diagrams, figures):
+    - If a source page has a relevant diagram/chart with clear explanatory value, include it
+      as visual_aids with type "image_url" and the image's absolute URL
+    - Judge relevance: prefer diagrams explaining mechanisms, architecture overviews,
+      comparison charts, result plots — skip decorative screenshots or generic stock photos
+    - Always provide a descriptive caption explaining what the image shows
+
+    For method/procedural content (how-to, implementation, deployment, etc.), also include:
+    - expected_output: Description of what a successful result looks like — output format,
+      shape, key metrics, or acceptance criteria. Synthesize from the answer if sources
+      don't explicitly provide this.
+    - example: A minimal worked example (sample input → processing steps → expected output).
+      Construct synthetically based on the answer if sources lack one. Write
+      '[insufficient data — needs supplementation]' only if impossible to construct.
+
+    Visual aids placement (optional after_section field):
+    - "answer" — insert after the main answer paragraph (default for architecture/pipeline diagrams)
+    - "supporting_claims" — insert after claims (default for evidence figures/charts)
+    - "inferences", "uncertainty", "missing_evidence", "suggested_next_steps" — after respective sections
+    - Omit after_section to place at the end of the card (backward compatible)
+
+    Args:
+        query: The original research question.
+        answer_json: JSON string with the structured answer.
+    """
+    # Validate query — reject path traversal characters
+    if not query or not query.strip():
+        return json.dumps({"error": "query must not be empty"})
+    for char in ("..", "/", "\\"):
+        if char in query:
+            return json.dumps({"error": f"query must not contain path separators or traversal sequences"})
+
+    try:
+        answer_data = json.loads(answer_json)
+    except json.JSONDecodeError as e:
+        return json.dumps({"error": f"Invalid JSON: {e}"})
+
+    # Validate against schema
+    warnings = validate_answer_schema(answer_data)
+
+    # Build knowledge card
+    try:
+        card_path = build_knowledge_card(query, answer_data, None, get_knowledge_dir(), index_path=get_index_path())
+    except Exception as e:
+        return json.dumps({"error": f"Failed to write card: {e}"})
+
+    index_path = get_index_path()
+    _mark_index_stale(index_path)
+
+    return json.dumps({
+        "status": "ok",
+        "card_path": str(card_path),
+        "reindexed": False,
+        "index_pending_refresh": True,
+        "schema_warnings": warnings,
+    }, ensure_ascii=False, indent=2)
+
+
+@tool
+def list_knowledge(topic: str | None = None) -> str:
+    """List all knowledge cards in the local knowledge base.
+
+    Returns card metadata (id, title, topic, type) for browsing and discovery.
+
+    Args:
+        topic: Optional topic filter (e.g. 'qpe', 'markov_chain'). Returns all if omitted.
+    """
+    if topic is not None:
+        for char in ("..", "/", "\\"):
+            if char in topic:
+                return json.dumps({"error": "topic must not contain path separators or traversal sequences", "cards": [], "total": 0})
+    index_path, refreshed, refresh_error = _ensure_index_ready()
+    if not index_path.exists():
+        return json.dumps({"cards": [], "total": 0, "error": refresh_error or "Index not found. Run local_index.py first."})
+
+    try:
+        index_data = json.loads(index_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return json.dumps({"cards": [], "total": 0, "error": "Failed to read index."})
+
+    cards = []
+    for doc in index_data.get("documents", []):
+        if topic:
+            doc_topic = doc.get("topic", "")
+            if doc_topic != topic and not doc_topic.endswith("/" + topic) and not doc_topic.startswith(topic + "/"):
+                continue
+        cards.append({
+            "id": doc.get("doc_id", ""),
+            "title": doc.get("title", ""),
+            "domain": doc.get("domain", ""),
+            "topic": doc.get("topic", ""),
+            "type": doc.get("type", ""),
+            "path": doc.get("path", ""),
+            "links": doc.get("links", []),
+            "backlinks": doc.get("backlinks", []),
+        })
+
+    payload = {"cards": cards, "total": len(cards)}
+    if refresh_error:
+        payload["warning"] = refresh_error
+    if refreshed:
+        payload["index_refreshed"] = True
+    return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+@tool
+def capture_answer(query: str, answer: str, tags: str = "") -> str:
+    """Capture a useful Q&A answer as a draft knowledge card.
+
+    Use this when a conversation produces a substantive answer that isn't
+    already in the knowledge base and is worth persisting. The card is
+    created as a draft with low verification level.
+
+    Unlike save_research, this tool does not require structured JSON or
+    evidence — just the question and the answer text.
+
+    Args:
+        query: The question that was answered.
+        answer: The answer text (plain text or markdown).
+        tags: Comma-separated tags for the card (optional).
+    """
+    if not query or not query.strip():
+        return json.dumps({"error": "query must not be empty"})
+    if not answer or not answer.strip():
+        return json.dumps({"error": "answer must not be empty"})
+    for char in ("..", "/", "\\"):
+        if char in query:
+            return json.dumps({"error": "query must not contain path separators or traversal sequences"})
+
+    # Build a minimal structured answer for the card builder
+    answer_data = {
+        "answer": answer,
+        "supporting_claims": [],
+        "inferences": [],
+        "uncertainty": ["Captured from conversation — not yet verified against sources"],
+        "missing_evidence": ["Source references needed"],
+        "suggested_next_steps": ["Verify against authoritative sources", "Add supporting evidence"],
+    }
+
+    if tags and tags.strip():
+        answer_data["tags"] = [t.strip() for t in tags.split(",") if t.strip()]
+
+    # Build the card
+    try:
+        card_path = build_knowledge_card(query, answer_data, None, get_knowledge_dir(), index_path=get_index_path())
+    except Exception as e:
+        return json.dumps({"error": f"Failed to write card: {e}"})
+
+    index_path = get_index_path()
+    _mark_index_stale(index_path)
+
+    return json.dumps({
+        "status": "ok",
+        "card_path": str(card_path),
+        "reindexed": False,
+        "index_pending_refresh": True,
+        "note": "Card created as draft. Verify and promote when confidence is confirmed.",
+    }, ensure_ascii=False, indent=2)
+
+
+@tool
+def ingest_source(source: str, title: str = "", tags: str = "") -> str:
+    """Ingest a URL or raw text into the knowledge base as a draft card.
+
+    For URLs: fetches the page content, extracts text, and saves as a card.
+    For text: saves the provided text directly as a card.
+
+    Use this when you want to add external documents, articles, or notes
+    to the knowledge base without requiring structured JSON.
+
+    Args:
+        source: A URL (starting with http:// or https://) or raw text/markdown.
+        title: Optional title for the card. Auto-detected from URL pages.
+        tags: Comma-separated tags for the card (optional).
+    """
+    if not source or not source.strip():
+        return json.dumps({"error": "source must not be empty"})
+
+    is_url = source.strip().startswith(("http://", "https://"))
+
+    if is_url:
+        from research_harness import fetch_content
+        result = fetch_content(source.strip())
+        if result["retrieval_status"] == "failed":
+            return json.dumps({"error": f"Failed to fetch URL: {result.get('failure_reason', 'unknown')}"})
+        content = result["content_md"]
+        auto_title = result.get("title", "") or title or source.strip()[:80]
+    else:
+        content = source.strip()
+        auto_title = title or content.split("\n")[0][:80]
+
+    if not auto_title or not auto_title.strip():
+        auto_title = f"untitled-{__import__('datetime').datetime.now(__import__('datetime').timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+
+    if not content:
+        return json.dumps({"error": "No content extracted from source"})
+
+    answer_data = {
+        "answer": content,
+        "supporting_claims": [],
+        "inferences": [],
+        "uncertainty": ["Ingested source — not yet verified or synthesized"],
+        "missing_evidence": ["Cross-reference with other sources needed"],
+        "suggested_next_steps": ["Verify key claims", "Link to related cards"],
+    }
+
+    if tags and tags.strip():
+        answer_data["tags"] = [t.strip() for t in tags.split(",") if t.strip()]
+    if is_url:
+        answer_data["tags"] = answer_data.get("tags", []) + ["ingested-url"]
+
+    try:
+        card_path = build_knowledge_card(auto_title, answer_data, None, get_knowledge_dir(), index_path=get_index_path())
+    except Exception as e:
+        return json.dumps({"error": f"Failed to write card: {e}"})
+
+    index_path = get_index_path()
+    _mark_index_stale(index_path)
+
+    return json.dumps({
+        "status": "ok",
+        "card_path": str(card_path),
+        "reindexed": False,
+        "index_pending_refresh": True,
+        "source_type": "url" if is_url else "text",
+        "title": auto_title,
+    }, ensure_ascii=False, indent=2)
+
+
+@tool
+def build_graph() -> str:
+    """Build an interactive knowledge graph visualization.
+
+    Generates a self-contained HTML file showing all knowledge cards as nodes
+    and their wiki-links as edges. Open the output file in a browser to
+    explore the knowledge graph visually. Compatible with Obsidian vaults.
+
+    Returns the path to the generated graph.html file.
+    """
+    from build_graph import build_graph_data, generate_html
+
+    index_path, _refreshed, refresh_error = _ensure_index_ready()
+    if not index_path.exists():
+        return json.dumps({"error": refresh_error or "Index not found. Run local_index.py first."})
+
+    graph_data = build_graph_data(index_path)
+    output_path = ROOT / "graph.html"
+    generate_html(graph_data, output_path)
+
+    return json.dumps({
+        "status": "ok",
+        "path": str(output_path),
+        "nodes": len(graph_data["nodes"]),
+        "edges": len(graph_data["edges"]),
+    }, ensure_ascii=False, indent=2)
+
+
+if __name__ == "__main__":
+    if mcp is None:
+        print("Error: fastmcp not installed. Run: pip install fastmcp", file=sys.stderr)
+        sys.exit(1)
+    mcp.run()
