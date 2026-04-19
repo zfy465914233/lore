@@ -15,6 +15,7 @@ echo "[1/4] Creating directories..."
 mkdir -p "$VAULT_DIR/knowledge"
 mkdir -p "$VAULT_DIR/paper-notes"
 mkdir -p "$VAULT_DIR/indexes/local"
+mkdir -p "$VAULT_DIR/.claude/skills"
 
 # 2. Copy config templates (don't overwrite existing)
 echo "[2/4] Setting up config files..."
@@ -32,10 +33,16 @@ else
   echo "  .mcp.json already exists, skipping"
 fi
 
-# 3. Install Claude Code skills
-echo "[3/4] Installing Claude Code skills..."
-SKILLS_DIR="$HOME/.claude/skills"
-mkdir -p "$SKILLS_DIR"
+if [ ! -f "$VAULT_DIR/.claude/settings.local.json" ]; then
+  cp "$SCRIPT_DIR/templates/settings.local.json.template" "$VAULT_DIR/.claude/settings.local.json"
+  echo "  Created .claude/settings.local.json"
+else
+  echo "  .claude/settings.local.json already exists, skipping"
+fi
+
+# 3. Install Claude Code skills (project-local, not global)
+echo "[3/4] Installing Claude Code skills (project-local)..."
+SKILLS_DIR="$VAULT_DIR/.claude/skills"
 
 for skill in conf-papers extract-paper-images paper-analyze paper-search start-my-day; do
   if [ -d "$SKILLS_DIR/$skill" ]; then
@@ -60,17 +67,20 @@ echo "=== Setup complete! ==="
 echo ""
 echo "Directory structure:"
 echo "  $VAULT_DIR/"
-echo "  ├── .lore.json          # Scholar-agent config"
-echo "  ├── .mcp.json           # MCP server config"
-echo "  ├── knowledge/          # Knowledge cards (synthesized topics)"
-echo "  ├── paper-notes/        # Paper analysis notes"
-echo "  └── indexes/            # BM25 search index"
+echo "  ├── .claude/"
+echo "  │   ├── settings.local.json  # MCP + skill permissions"
+echo "  │   └── skills/              # Project-local skills"
+echo "  ├── .lore.json               # Scholar-agent config"
+echo "  ├── .mcp.json                # MCP server config"
+echo "  ├── knowledge/               # Knowledge cards"
+echo "  ├── paper-notes/             # Paper analysis notes"
+echo  └── indexes/                 # BM25 search index"
 echo ""
-echo "Claude Code skills installed:"
-echo "  /paper-analyze   - Analyze a paper in depth"
-echo "  /conf-papers     - Search conference papers"
+echo "Skills installed:"
+echo "  /paper-analyze        - Analyze a paper in depth"
+echo "  /conf-papers          - Search conference papers"
 echo "  /extract-paper-images - Extract figures from papers"
-echo "  /paper-search    - Search existing paper notes"
-echo "  /start-my-day    - Daily paper recommendations"
+echo "  /paper-search         - Search existing paper notes"
+echo "  /start-my-day         - Daily paper recommendations"
 echo ""
-echo "Restart Claude Code to activate the MCP server and skills."
+echo "Restart Claude Code to activate."

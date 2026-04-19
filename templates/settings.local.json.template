@@ -1,0 +1,11 @@
+{
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "scholar-agent"
+  ],
+  "permissions": {
+    "allow": [
+      "Skill(paper-analyze)"
+    ]
+  }
+}
