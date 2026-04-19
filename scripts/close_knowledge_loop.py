@@ -503,8 +503,20 @@ def build_knowledge_card(
     # --- 参考文献 ---
     if source_urls:
         lines.extend(["## 参考文献", ""])
+        # Build a title lookup from research evidence for richer reference entries
+        url_title_map: dict[str, str] = {}
+        if research_data:
+            for item in research_data.get("evidence", []):
+                u = item.get("url", "")
+                t = item.get("title", "")
+                if u and t:
+                    url_title_map[u] = t
         for i, url in enumerate(source_urls, 1):
-            lines.append(f"{i}. {url}")
+            title = url_title_map.get(url, "")
+            if title:
+                lines.append(f"{i}. [{title}]({url})")
+            else:
+                lines.append(f"{i}. [{url}]({url})")
         lines.extend(["", "---", ""])
 
     # --- See Also (always present) ---

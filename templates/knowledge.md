@@ -118,8 +118,8 @@ review_status: draft          # draft | reviewed | verified
 
 ## 参考文献
 
-1. **Author, A.** (Year). *Title*. Journal/Publisher.
-2. **Author, B.** (Year). *Title*. Journal/Publisher.
+1. [Title or Description](https://example.com/source1)
+2. [Title or Description](https://example.com/source2)
 
 ---
 
