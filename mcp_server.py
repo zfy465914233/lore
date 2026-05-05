@@ -227,12 +227,11 @@ def save_research(query: str, answer_json: str) -> str:
         query: The original research question.
         answer_json: JSON string with the structured answer.
     """
-    # Validate query — reject path traversal characters
+    # Validate query — reject path traversal sequences only
     if not query or not query.strip():
         return json.dumps({"error": "query must not be empty"})
-    for char in ("..", "/", "\\"):
-        if char in query:
-            return json.dumps({"error": f"query must not contain path separators or traversal sequences"})
+    if ".." in query:
+        return json.dumps({"error": "query must not contain path traversal sequences"})
 
     try:
         answer_data = json.loads(answer_json)
@@ -582,6 +581,7 @@ if SCHOLAR_ACADEMIC:
                 max_results=max_results,
                 top_n=top_n,
                 skip_hot=skip_hot,
+                query=query,
             )
         except Exception as e:
             logger.exception("search_papers failed")
@@ -629,9 +629,18 @@ if SCHOLAR_ACADEMIC:
             from datetime import datetime
             year = datetime.now().year
 
-        venue_list = [v.strip().upper() for v in venues.split(",") if v.strip()]
-        # Validate venue names
-        invalid = [v for v in venue_list if v not in DBLP_VENUES]
+        venue_list = [v.strip() for v in venues.split(",") if v.strip()]
+        # Validate venue names (case-insensitive, then normalize to DBLP_VENUES keys)
+        _upper_map = {k.upper(): k for k in DBLP_VENUES}
+        normalized = []
+        invalid = []
+        for v in venue_list:
+            mapped = _upper_map.get(v.upper())
+            if mapped:
+                normalized.append(mapped)
+            else:
+                invalid.append(v)
+        venue_list = normalized
         if invalid:
             return json.dumps({
                 "error": f"Unknown venues: {invalid}. Supported: {list(DBLP_VENUES.keys())}",

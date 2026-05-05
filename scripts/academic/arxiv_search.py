@@ -352,6 +352,7 @@ def search_and_score(
     max_results: int = 200,
     top_n: int = 10,
     skip_hot: bool = False,
+    query: str = "",
 ) -> dict[str, Any]:
     """Full arXiv + S2 search → score → dedup pipeline.
 
@@ -383,6 +384,14 @@ def search_and_score(
             scored_hot = score_papers(hot, config, is_hot_batch=True)
             logger.info("Scored %d hot papers", len(scored_hot))
             all_scored.extend(scored_hot)
+
+    # Step 2.5: query-based S2 search (if user provided a non-empty query)
+    if query and query.strip():
+        query_papers = search_semantic_scholar(query.strip(), w1y_start, w1y_end, top_k=10)
+        if query_papers:
+            scored_query = score_papers(query_papers, config, is_hot_batch=True)
+            logger.info("Scored %d query-based S2 papers", len(scored_query))
+            all_scored.extend(scored_query)
 
     # Step 3: merge and dedup
     all_scored.sort(key=lambda p: p["scores"]["recommendation"], reverse=True)

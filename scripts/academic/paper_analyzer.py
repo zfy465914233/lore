@@ -545,7 +545,7 @@ def _generate_zh_note(
     tags = ["论文笔记"] + domain_tags.get(domain, [domain])
     tags_yaml = "\n".join(f"  - {tag}" for tag in tags)
 
-    score_str = f"{scores['recommendation']:.1f}/10" if scores else "[SCORE]/10"
+    score_str = f"{scores.get('recommendation', 0):.1f}/10" if scores else "[SCORE]/10"
     related_yaml = "\n".join(f'  - "{rp}"' for rp in (related_papers or [])) or "[]"
     affil_str = "、".join(affiliations[:3]) if affiliations else "<!-- LLM: 从论文中提取作者机构信息 -->"
 
@@ -677,7 +677,7 @@ def _generate_en_note(
     tags = ["paper-notes"] + domain_tags.get(domain, [domain])
     tags_yaml = "\n".join(f"  - {tag}" for tag in tags)
 
-    score_str = f"{scores['recommendation']:.1f}/10" if scores else "[SCORE]/10"
+    score_str = f"{scores.get('recommendation', 0):.1f}/10" if scores else "[SCORE]/10"
     related_yaml = "\n".join(f'  - "{rp}"' for rp in (related_papers or [])) or "[]"
     affil_str = ", ".join(affiliations[:3]) if affiliations else "<!-- LLM: Extract author affiliations from the paper -->"
 
