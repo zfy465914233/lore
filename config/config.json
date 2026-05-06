@@ -1,0 +1,47 @@
+{
+  "knowledge_dir": "/Users/zhoufangyi/scholar-agent/knowledge",
+  "index_path": "/Users/zhoufangyi/scholar-agent/indexes/local/index.json",
+  "scholar_dir": "/Users/zhoufangyi/scholar-agent",
+  "profile": "default",
+  "academic": {
+    "paper_notes_dir": "/Users/zhoufangyi/scholar-agent/paper-notes",
+    "daily_notes_dir": "/Users/zhoufangyi/scholar-agent/daily-notes",
+    "search": {
+      "sources": [
+        "arxiv",
+        "dblp",
+        "semantic_scholar"
+      ],
+      "default_conferences": [
+        "CVPR",
+        "ICCV",
+        "ECCV",
+        "ICLR",
+        "AAAI",
+        "NeurIPS",
+        "ICML",
+        "ACL",
+        "EMNLP",
+        "MICCAI"
+      ],
+      "max_results": 20,
+      "date_range_days": 30
+    },
+    "scoring": {
+      "dimensions": [
+        "relevance",
+        "recency",
+        "popularity",
+        "quality"
+      ],
+      "max_score": 3.0
+    },
+    "research_interests": {
+      "research_domains": {},
+      "excluded_keywords": [
+        "survey",
+        "workshop"
+      ]
+    }
+  }
+}

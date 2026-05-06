@@ -1,12 +1,15 @@
 """Shared configuration reader for Scholar Agent.
 
-Looks for .scholar.json walking up from cwd. If not found, defaults to cwd.
+Config discovery order:
+  1. User-level config: ~/scholar/config/config.json (global install mode)
+  2. Workspace walk-up: .scholar.json in cwd or parent dirs (project-local mode)
+  3. SCHOLAR_ROOT fallback: scholar-agent/.scholar.json (embedded mode)
 
-Config file format (.scholar.json):
+Config file format (.scholar.json or config.json):
 {
   "knowledge_dir": "./knowledge",       // path to knowledge cards
   "index_path": "./indexes/local/index.json",  // path to BM25 index
-  "scholar_dir": "./scholar-agent"            // only needed when embedded as subdirectory
+  "scholar_dir": "./scholar"                  // only needed when embedded as subdirectory
 }
 """
 
@@ -14,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -31,10 +35,26 @@ _DEFAULTS = {
 _config_cache: dict | None = None
 
 
+def _get_user_config_path() -> Path:
+    """Return the user-level config path (~/scholar/config/config.json by default)."""
+    override = os.environ.get("SCHOLAR_HOME", "").strip()
+    if override:
+        user_home = Path(override).expanduser().resolve()
+    else:
+        user_home = Path.home() / "scholar"
+    return user_home / "config" / "config.json"
+
+
 def _find_config_file() -> Path | None:
-    """Find .scholar.json — walk up from cwd, then check SCHOLAR_ROOT (embedded mode)."""
+    """Find config — user-level first, then workspace walk-up, then SCHOLAR_ROOT fallback."""
+    # 1. User-level config (global install mode)
+    user_config = _get_user_config_path()
+    if user_config.exists():
+        return user_config
+
+    # 2. Walk up from cwd looking for .scholar.json
     current = Path.cwd()
-    for _ in range(10):  # max 10 levels up
+    for _ in range(10):
         candidate = current / ".scholar.json"
         if candidate.exists():
             return candidate
@@ -42,7 +62,8 @@ def _find_config_file() -> Path | None:
         if parent == current:
             break
         current = parent
-    # Fallback: scholar-agent's own directory (embedded mode where config lives inside scholar-agent/)
+
+    # 3. SCHOLAR_ROOT fallback (embedded mode)
     scholar_config_file = SCHOLAR_ROOT / ".scholar.json"
     if scholar_config_file.exists():
         return scholar_config_file
@@ -98,6 +119,24 @@ def clear_cache() -> None:
     """Clear cached config (useful after setup_mcp.py writes new config)."""
     global _config_cache
     _config_cache = None
+
+
+def get_config_file_path() -> Path | None:
+    """Return the resolved config file path (without loading)."""
+    return _find_config_file()
+
+
+def detect_runtime_mode() -> str:
+    """Detect the current runtime mode based on config file location."""
+    config_file = _find_config_file()
+    if config_file is None:
+        return "default"
+    user_config = _get_user_config_path()
+    if config_file.resolve() == user_config.resolve():
+        return "user-config"
+    if config_file.parent == SCHOLAR_ROOT:
+        return "repo-embedded"
+    return "workspace"
 
 
 def get_research_interests() -> dict:

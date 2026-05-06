@@ -17,7 +17,7 @@ import scholar_config
 from mcp_server import list_knowledge, query_knowledge, save_research
 
 _TEST_INDEX = ROOT / "indexes" / "local" / "index.json"
-_TEST_KNOWLEDGE = ROOT / "knowledge"
+_TEST_KNOWLEDGE = ROOT / "tests" / "fixtures"
 scholar_config._config_cache = {
     "knowledge_dir": str(_TEST_KNOWLEDGE),
     "index_path": str(_TEST_INDEX),
@@ -76,8 +76,8 @@ class SaveResearchValidationTest(unittest.TestCase):
 
     def _valid_answer(self) -> dict:
         return {
-            "answer": "test",
-            "supporting_claims": [{"claim": "c", "evidence_ids": ["e1"], "confidence": "high"}],
+            "answer": "This is a test answer with enough content to pass the quality gate threshold for minimum answer length requirements. It must be at least 200 characters long to be accepted by the quality gate in the save_research function.",
+            "supporting_claims": [{"claim": "This is a test claim with enough substance to pass validation checks", "evidence_ids": ["e1"], "confidence": "high"}],
             "inferences": [],
             "uncertainty": [],
             "missing_evidence": [],

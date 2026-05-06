@@ -1,0 +1,1 @@
+"""Adapter layer for Scholar Agent host integrations."""

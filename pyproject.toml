@@ -12,6 +12,7 @@ dependencies = [
     "jsonschema>=4.23,<5",
     "fastmcp>=2.0",
     "PyMuPDF>=1.24.0",
+    "platformdirs>=3.0",
 ]
 
 [project.optional-dependencies]
@@ -26,7 +27,7 @@ all = [
 ]
 
 [project.scripts]
-scholar-agent = "mcp_server:main"
+scholar-agent = "scholar_agent.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/zfy465914233/scholar-agent"
@@ -42,7 +43,7 @@ py-modules = ["mcp_server", "setup_mcp"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["scripts*"]
+include = ["scripts*", "scholar_agent*"]
 
 [tool.setuptools.package-data]
 scripts = ["../schemas/**", "../templates/**", "../.scholar.example.json"]

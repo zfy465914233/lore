@@ -45,32 +45,103 @@ Scholar Agent includes a comprehensive academic paper research pipeline:
 
 ## Quick Start
 
-### Embed into an existing project
+### Step 1: Install
 
 ```bash
-cd my-project && git clone https://github.com/zfy465914233/scholar-agent.git
-bash scholar-agent/setup.sh
-# Restart Claude Code to activate
-```
-
-This will create the directory structure, copy config templates, install skills, and build the knowledge index.
-
-### Use as a standalone project
-
-```bash
-# Clone and install
 git clone https://github.com/zfy465914233/scholar-agent.git
 cd scholar-agent
-pip install -r requirements.txt
-
-# Build the knowledge index
-python scripts/local_index.py --output indexes/local/index.json
+pip install -e .
 ```
 
-MCP configs are pre-configured:
+### Step 2: Choose Your Mode
 
-- **Claude Code**: `.mcp.json` is ready. `cd` into the project and start Claude Code.
-- **VS Code Copilot**: `.vscode/mcp.json` is ready. Open the project, enable agent mode.
+#### Mode A: Global (Recommended)
+
+One knowledge base shared across all projects. Data stored at `~/scholar/`.
+
+```bash
+scholar-agent init
+```
+
+This registers MCP in `~/.claude.json` (user-level), making Scholar Agent available in **every project**.
+
+#### Mode B: Project-Local
+
+Each project gets its own isolated knowledge base inside the project directory. Knowledge cards can be version-controlled alongside your code.
+
+```bash
+cd my-project
+SCHOLAR_HOME=$(pwd)/scholar scholar-agent init    # macOS / Linux
+
+# Windows (PowerShell)
+# $env:SCHOLAR_HOME = "$PWD\scholar"
+# scholar-agent init
+```
+
+Data stored in `my-project/scholar/`. MCP registered in `my-project/.mcp.json` (project-level), available **only in that project**.
+
+Add `scholar/` to `.gitignore` if you don't want knowledge cards in version control, or commit them to share with your team.
+
+#### Mode C: Developer / Contributor
+
+```bash
+git clone https://github.com/zfy465914233/scholar-agent.git
+cd scholar-agent
+pip install -e .
+scholar-agent config init
+python -m pytest tests/ -v
+```
+
+## CLI Reference
+
+| Command | Description |
+|---------|-------------|
+| `scholar-agent init` | One-command setup: data dirs + config + MCP registration |
+| `scholar-agent serve-mcp` | Start the MCP server (used by Claude Code internally) |
+| `scholar-agent doctor` | Show environment and config diagnostics |
+| `scholar-agent config show` | Show resolved configuration |
+| `scholar-agent config init` | Create user-level data dirs and config |
+| `scholar-agent install claude --write` | Register MCP with Claude Code |
+| `scholar-agent install vscode --write` | Register MCP with VS Code Copilot |
+| `scholar-agent install opencode --write` | Register MCP with OpenCode |
+
+## Data Directory
+
+| Mode | Default Path |
+|------|-------------|
+| Global | `~/scholar/` |
+| Project-Local | `my-project/scholar/` |
+
+Override with the `SCHOLAR_HOME` environment variable.
+
+```
+Directory structure after init:
+  scholar/
+  ├── config/         # Configuration files
+  ├── knowledge/      # Knowledge cards
+  ├── paper-notes/    # Paper analysis notes
+  ├── daily-notes/    # Daily paper recommendations
+  ├── indexes/        # BM25 search index
+  ├── cache/          # Cached data
+  └── outputs/        # Generated outputs
+```
+
+## System Dependencies
+
+| Dependency | macOS | Ubuntu / Debian | Windows |
+|-----------|-------|----------------|---------|
+| poppler (PDF text extraction) | `brew install poppler` | `sudo apt install poppler-utils` | `winget install poppler` or `choco install poppler` |
+| Python 3.10+ | `brew install python` | `sudo apt install python3` | [python.org](https://www.python.org/downloads/) |
+
+## Recommended Workflow
+
+For best analysis quality, follow this order:
+
+1. **Download the paper**: `download_paper("2510.24701", title="Paper Title", domain="LLM")`
+2. **Extract images**: `extract_paper_images("2510.24701")` (auto-detects local PDF)
+3. **Deep analysis**: `analyze_paper(paper_json)` (auto-detects local PDF, extracts full text)
+
+> **Tip**: Downloading the PDF before analysis enables full-text extraction, producing high-quality notes with specific data, formulas, and experimental results. Without a local PDF, analysis relies on the abstract only.
 
 ## MCP Tools
 
@@ -96,16 +167,6 @@ MCP configs are pre-configured:
 | `paper_to_card` | Convert paper analysis into a knowledge card |
 | `daily_recommend` | Daily paper recommendation workflow |
 | `link_paper_keywords` | Auto-link keywords as `[[wikilinks]]` in notes |
-
-### Recommended Workflow
-
-For best analysis quality, follow this order:
-
-1. **Download the paper**: `download_paper("2510.24701", title="Paper Title", domain="LLM")`
-2. **Extract images**: `extract_paper_images("2510.24701")` (auto-detects local PDF)
-3. **Deep analysis**: `analyze_paper(paper_json)` (auto-detects local PDF, extracts full text)
-
-> **Tip**: Downloading the PDF before analysis enables full-text extraction, producing high-quality notes with specific data, formulas, and experimental results. Without a local PDF, analysis relies on the abstract only.
 
 ## Configuration
 

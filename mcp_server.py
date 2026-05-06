@@ -56,7 +56,10 @@ if str(SCRIPTS) not in sys.path:
 from close_knowledge_loop import (
     build_knowledge_card,
     infer_domain,
+    quality_score_answer_data,
     validate_answer_schema,
+    QUALITY_THRESHOLD_SAVE_RESEARCH,
+    QUALITY_THRESHOLD_CAPTURE_ANSWER,
 )
 from close_knowledge_loop import reindex as _reindex
 from scholar_config import get_knowledge_dir, get_index_path, get_research_interests, load_config
@@ -195,6 +198,14 @@ def save_research(query: str, answer_json: str) -> str:
       "visual_aids": [{"type": "mermaid|image_url|image_path", "content": "...", "caption": "...", "alt_text": "..."}]
     }
 
+    IMPORTANT quality requirements:
+    - The "answer" field MUST be at least 200 characters of substantive content.
+    - You MUST include at least 1 supporting_claim with evidence_ids and confidence.
+    - Each claim text MUST be at least 20 characters — vague one-word claims are rejected.
+    - DO NOT create cards with empty supporting_claims — every card needs evidence-backed claims.
+    - Aim for 3+ supporting claims, inferences, uncertainty, and suggested_next_steps for high-quality cards.
+    - DO NOT use this tool for trivial facts or one-sentence answers — those are not worth persisting.
+
     When to include visual_aids (auto-judge by topic):
     - Processes / workflows / data flow → mermaid flowchart or sequence diagram
     - Architecture / system design → mermaid graph or class diagram
@@ -238,6 +249,25 @@ def save_research(query: str, answer_json: str) -> str:
 
     # Validate against schema
     warnings = validate_answer_schema(answer_data)
+
+    # Quality gate
+    quality = quality_score_answer_data(answer_data, source="save_research")
+    if not quality["passed"]:
+        return json.dumps({
+            "error": (
+                f"Quality gate failed (score: {quality['score']:.2f}, "
+                f"minimum: {QUALITY_THRESHOLD_SAVE_RESEARCH:.2f}). "
+                "Your answer is too thin to create a useful knowledge card."
+            ),
+            "quality_score": quality["score"],
+            "quality_threshold": QUALITY_THRESHOLD_SAVE_RESEARCH,
+            "violations": quality["violations"],
+            "guidance": (
+                "Provide a detailed answer (200+ characters) with at least 1 supporting claim "
+                "referencing evidence. Include inferences, uncertainty, and suggested_next_steps "
+                "for higher quality."
+            ),
+        }, ensure_ascii=False, indent=2)
 
     # Build knowledge card
     try:
@@ -308,16 +338,25 @@ def list_knowledge(topic: str | None = None) -> str:
 def capture_answer(query: str, answer: str, tags: str = "") -> str:
     """Capture a useful Q&A answer as a draft knowledge card.
 
-    Use this when a conversation produces a substantive answer that isn't
-    already in the knowledge base and is worth persisting. The card is
-    created as a draft with low verification level.
+    Use this ONLY when a conversation produces a SUBSTANTIVE answer that is worth
+    persisting — meaning it provides genuine technical insight, a non-obvious
+    explanation, or actionable knowledge that cannot be found in standard references.
 
-    Unlike save_research, this tool does not require structured JSON or
-    evidence — just the question and the answer text.
+    DO NOT use this tool for:
+    - Single-sentence answers or brief definitions
+    - Answers that could be found in any standard reference (Wikipedia, docs)
+    - Trivial facts, simple yes/no responses, or content shorter than 150 characters
+    - Paper or topic-level knowledge that requires source verification
+
+    If you have structured evidence and claims, prefer save_research instead —
+    it produces higher-quality cards with proper source attribution.
+
+    The answer text MUST be at least 150 characters. Write a thorough explanation
+    covering the key insight, context, and practical implications.
 
     Args:
         query: The question that was answered.
-        answer: The answer text (plain text or markdown).
+        answer: The answer text (plain text or markdown). Minimum 150 characters.
         tags: Comma-separated tags for the card (optional).
     """
     if not query or not query.strip():
@@ -337,6 +376,25 @@ def capture_answer(query: str, answer: str, tags: str = "") -> str:
 
     if tags and tags.strip():
         answer_data["tags"] = [t.strip() for t in tags.split(",") if t.strip()]
+
+    # Quality gate
+    quality = quality_score_answer_data(answer_data, source="capture_answer")
+    if not quality["passed"]:
+        return json.dumps({
+            "error": (
+                f"Quality gate failed (score: {quality['score']:.2f}, "
+                f"minimum: {QUALITY_THRESHOLD_CAPTURE_ANSWER:.2f}). "
+                "Your answer is too brief to create a useful knowledge card."
+            ),
+            "quality_score": quality["score"],
+            "quality_threshold": QUALITY_THRESHOLD_CAPTURE_ANSWER,
+            "violations": quality["violations"],
+            "guidance": (
+                "capture_answer is for substantive Q&A captures. Write at least 150 characters "
+                "explaining the answer with context and practical implications. "
+                "For a one-liner, this information is better left uncaptured."
+            ),
+        }, ensure_ascii=False, indent=2)
 
     # Build the card
     try:

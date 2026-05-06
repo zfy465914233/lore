@@ -7,18 +7,21 @@
   "properties": {
     "answer": {
       "type": "string",
-      "description": "Concise direct answer to the question. Should be detailed enough for an agent to gain actionable knowledge and design technical roadmaps."
+      "minLength": 200,
+      "description": "Concise direct answer to the question. Should be detailed enough for an agent to gain actionable knowledge and design technical roadmaps. Minimum 200 characters."
     },
     "supporting_claims": {
       "type": "array",
-      "description": "Factual claims directly supported by evidence. Each claim must reference at least one evidence_id.",
+      "minItems": 1,
+      "description": "Factual claims directly supported by evidence. Each claim must reference at least one evidence_id. At least 1 claim required.",
       "items": {
         "type": "object",
         "required": ["claim", "evidence_ids", "confidence"],
         "properties": {
           "claim": {
             "type": "string",
-            "description": "The factual claim text. Include specific quantitative results when available."
+            "minLength": 20,
+            "description": "The factual claim text. Include specific quantitative results when available. Minimum 20 characters."
           },
           "evidence_ids": {
             "type": "array",

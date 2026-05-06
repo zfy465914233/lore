@@ -15,6 +15,11 @@ if str(SCRIPTS) not in sys.path:
 
 import scholar_config
 from mcp_server import query_knowledge, save_research, list_knowledge, capture_answer
+from close_knowledge_loop import (
+    quality_score_answer_data,
+    QUALITY_THRESHOLD_SAVE_RESEARCH,
+    QUALITY_THRESHOLD_CAPTURE_ANSWER,
+)
 
 # Force config to always resolve to scholar-agent's own directories
 # regardless of cwd, so tests don't leak files into parent projects.
@@ -32,6 +37,13 @@ def tearDownModule() -> None:
 
 
 def _build_index() -> None:
+    # Ensure config cache points to test fixtures (may have been cleared by
+    # another test file's tearDownModule).
+    scholar_config._config_cache = {
+        "knowledge_dir": str(_TEST_KNOWLEDGE),
+        "index_path": str(_TEST_INDEX),
+        "scholar_dir": str(ROOT),
+    }
     _TEST_INDEX.parent.mkdir(parents=True, exist_ok=True)
     stale_marker = _TEST_INDEX.with_suffix(_TEST_INDEX.suffix + ".stale")
     if stale_marker.exists():
@@ -83,9 +95,9 @@ class SaveResearchTest(unittest.TestCase):
 
     def test_save_valid_research(self) -> None:
         answer = {
-            "answer": "Test answer from MCP",
+            "answer": "This is a test answer that is long enough to pass the quality gate threshold of 200 characters. It includes substantive content about testing the save_research function in the MCP server, including validation and card building.",
             "supporting_claims": [
-                {"claim": "test claim", "evidence_ids": ["e1"], "confidence": "high"},
+                {"claim": "The save_research function creates knowledge cards from structured JSON data", "evidence_ids": ["e1"], "confidence": "high"},
             ],
             "inferences": ["test inference"],
             "uncertainty": [],
@@ -101,11 +113,10 @@ class SaveResearchTest(unittest.TestCase):
         result = json.loads(save_research("test", "not json at all"))
         self.assertIn("error", result)
 
-    def test_save_missing_required_fields_warns(self) -> None:
+    def test_save_missing_required_fields_rejected(self) -> None:
         result = json.loads(save_research("test", json.dumps({"wrong": True})))
-        self.assertEqual("ok", result["status"])
-        self.assertGreater(len(result["schema_warnings"]), 0)
-        _cleanup_card(result["card_path"])
+        self.assertIn("error", result)
+        self.assertIn("Quality gate failed", result["error"])
 
 
 class ListKnowledgeTest(unittest.TestCase):
@@ -146,13 +157,13 @@ class CaptureAnswerTest(unittest.TestCase):
         self.assertIn("error", result)
 
     def test_success_creates_card(self) -> None:
-        result = json.loads(capture_answer("test capture query", "BM25 is a ranking function used in information retrieval."))
+        result = json.loads(capture_answer("test capture query", "BM25 is a probabilistic ranking function used in information retrieval systems to estimate the relevance of documents to a given search query based on term frequency and document length."))
         self.assertEqual("ok", result["status"])
         self.assertIn("card_path", result)
         _cleanup_card(result["card_path"])
 
     def test_tags_passthrough(self) -> None:
-        result = json.loads(capture_answer("test tags capture", "Some answer text.", tags="ml, search"))
+        result = json.loads(capture_answer("test tags capture", "This is a substantive test answer that exceeds the minimum character threshold for the capture_answer quality gate to ensure tags are properly passed through.", tags="ml, search"))
         self.assertEqual("ok", result["status"])
         # Verify tags appear in the card content
         card_path = Path(result["card_path"])
@@ -161,6 +172,91 @@ class CaptureAnswerTest(unittest.TestCase):
             self.assertIn("ml", content)
             self.assertIn("search", content)
         _cleanup_card(result["card_path"])
+
+
+class QualityGateTest(unittest.TestCase):
+    """Tests for the quality gate enforcement on card creation."""
+
+    def test_save_research_rejects_thin_answer(self) -> None:
+        answer = {
+            "answer": "Too short",
+            "supporting_claims": [
+                {"claim": "this claim is substantive enough to pass validation", "evidence_ids": ["e1"], "confidence": "high"},
+            ],
+        }
+        result = json.loads(save_research("thin answer test", json.dumps(answer)))
+        self.assertIn("error", result)
+        self.assertIn("Quality gate failed", result["error"])
+        self.assertIn("violations", result)
+        self.assertGreater(len(result["violations"]), 0)
+
+    def test_save_research_rejects_zero_claims(self) -> None:
+        answer = {
+            "answer": "This answer is long enough but has no supporting claims at all, which means it should be rejected by the quality gate since claims are required.",
+            "supporting_claims": [],
+        }
+        result = json.loads(save_research("zero claims test", json.dumps(answer)))
+        self.assertIn("error", result)
+        self.assertIn("Quality gate failed", result["error"])
+
+    def test_save_research_rejects_short_claims(self) -> None:
+        answer = {
+            "answer": "This answer is long enough and has claims but the claim text is too short to be meaningful, so the quality gate should reject it.",
+            "supporting_claims": [
+                {"claim": "short", "evidence_ids": ["e1"], "confidence": "high"},
+            ],
+        }
+        result = json.loads(save_research("short claim test", json.dumps(answer)))
+        self.assertIn("error", result)
+        self.assertIn("Quality gate failed", result["error"])
+
+    def test_capture_answer_rejects_brief_answer(self) -> None:
+        result = json.loads(capture_answer("brief test", "Too short"))
+        self.assertIn("error", result)
+        self.assertIn("Quality gate failed", result["error"])
+
+    def test_save_research_accepts_quality_answer(self) -> None:
+        answer = {
+            "answer": "This is a high-quality answer with sufficient length to pass all quality gates. It provides substantive content about the topic being researched and includes enough detail for a useful knowledge card.",
+            "supporting_claims": [
+                {"claim": "Quality gates enforce minimum content standards on knowledge cards", "evidence_ids": ["e1"], "confidence": "high"},
+                {"claim": "The scoring function evaluates answer length, claim count, claim depth, and structural richness", "evidence_ids": ["e2"], "confidence": "high"},
+            ],
+            "inferences": ["Quality gates should reduce the number of thin, uninformative cards"],
+            "uncertainty": ["Threshold values may need tuning based on real-world usage"],
+            "suggested_next_steps": ["Monitor rejection rates and adjust thresholds"],
+        }
+        result = json.loads(save_research("quality answer test", json.dumps(answer)))
+        self.assertEqual("ok", result["status"])
+        _cleanup_card(result["card_path"])
+
+    def test_quality_score_calculation(self) -> None:
+        # A fully-populated answer should score well
+        full_answer = {
+            "answer": "A" * 500,
+            "supporting_claims": [
+                {"claim": "B" * 50, "evidence_ids": ["e1"], "confidence": "high"},
+                {"claim": "C" * 50, "evidence_ids": ["e2"], "confidence": "medium"},
+                {"claim": "D" * 50, "evidence_ids": ["e3"], "confidence": "low"},
+            ],
+            "inferences": ["inf1"],
+            "uncertainty": ["unc1"],
+            "missing_evidence": ["miss1"],
+            "suggested_next_steps": ["step1"],
+        }
+        quality = quality_score_answer_data(full_answer, source="save_research")
+        self.assertTrue(quality["passed"])
+        self.assertGreaterEqual(quality["score"], QUALITY_THRESHOLD_SAVE_RESEARCH)
+        self.assertEqual(0, len(quality["violations"]))
+
+        # A minimal answer should fail
+        thin_answer = {
+            "answer": "short",
+            "supporting_claims": [],
+        }
+        quality = quality_score_answer_data(thin_answer, source="save_research")
+        self.assertFalse(quality["passed"])
+        self.assertGreater(len(quality["violations"]), 0)
 
 
 if __name__ == "__main__":

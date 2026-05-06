@@ -192,6 +192,105 @@ def validate_answer_schema(answer_data: dict) -> list[str]:
     return warnings
 
 
+# ---------------------------------------------------------------------------
+# Quality gate thresholds
+# ---------------------------------------------------------------------------
+QUALITY_THRESHOLD_SAVE_RESEARCH = 0.30
+QUALITY_THRESHOLD_CAPTURE_ANSWER = 0.20
+MIN_ANSWER_LENGTH_SAVE = 200
+MIN_ANSWER_LENGTH_CAPTURE = 150
+MIN_CLAIMS_SAVE = 1
+MIN_CLAIM_TEXT_LENGTH = 20
+
+
+def quality_score_answer_data(answer_data: dict, source: str = "save_research") -> dict:
+    """Score answer_data quality and return a structured result.
+
+    Returns dict with:
+      - score: float 0.0-1.0
+      - passed: bool
+      - violations: list[str] describing each failure
+      - details: dict of individual metric scores
+
+    Scoring formula (max 1.0):
+      - answer_length_score (0-0.3): min(answer_len / 500, 1.0) * 0.3
+      - claims_score (0-0.3): min(num_claims / 3, 1.0) * 0.3
+      - claim_depth_score (0-0.2): min(avg_claim_len / 50, 1.0) * 0.2
+      - structural_richness (0-0.2): 0.05 per non-empty optional field
+    """
+    if source == "capture_answer":
+        threshold = QUALITY_THRESHOLD_CAPTURE_ANSWER
+        min_answer_len = MIN_ANSWER_LENGTH_CAPTURE
+        min_claims = 0
+    else:
+        threshold = QUALITY_THRESHOLD_SAVE_RESEARCH
+        min_answer_len = MIN_ANSWER_LENGTH_SAVE
+        min_claims = MIN_CLAIMS_SAVE
+
+    violations: list[str] = []
+    answer_text = str(answer_data.get("answer", ""))
+    answer_len = len(answer_text)
+    claims = answer_data.get("supporting_claims", [])
+    if not isinstance(claims, list):
+        claims = []
+
+    # --- Hard constraints (violations regardless of score) ---
+    if answer_len < min_answer_len:
+        violations.append(
+            f"answer is {answer_len} characters, minimum is {min_answer_len}"
+        )
+    if len(claims) < min_claims:
+        violations.append(
+            f"supporting_claims has {len(claims)} items, minimum is {min_claims}"
+        )
+    for i, claim in enumerate(claims):
+        if isinstance(claim, dict):
+            claim_text = str(claim.get("claim", ""))
+            if len(claim_text) < MIN_CLAIM_TEXT_LENGTH:
+                violations.append(
+                    f"supporting_claims[{i}].claim is {len(claim_text)} characters, "
+                    f"minimum is {MIN_CLAIM_TEXT_LENGTH}"
+                )
+
+    # --- Soft scoring ---
+    answer_length_score = min(answer_len / 500, 1.0) * 0.3
+    claims_score = min(len(claims) / 3, 1.0) * 0.3
+    avg_claim_len = (
+        sum(len(str(c.get("claim", ""))) for c in claims if isinstance(c, dict))
+        / max(len(claims), 1)
+    )
+    claim_depth_score = min(avg_claim_len / 50, 1.0) * 0.2
+
+    optional_fields = [
+        "inferences", "uncertainty", "missing_evidence", "suggested_next_steps"
+    ]
+    filled_optional = sum(
+        1 for f in optional_fields if answer_data.get(f) and len(answer_data[f]) > 0
+    )
+    structural_richness = filled_optional * 0.05
+
+    score = round(
+        answer_length_score + claims_score + claim_depth_score + structural_richness,
+        4,
+    )
+    passed = score >= threshold and len(violations) == 0
+
+    return {
+        "score": score,
+        "passed": passed,
+        "violations": violations,
+        "details": {
+            "answer_length_score": round(answer_length_score, 4),
+            "claims_score": round(claims_score, 4),
+            "claim_depth_score": round(claim_depth_score, 4),
+            "structural_richness": round(structural_richness, 4),
+            "answer_length": answer_len,
+            "num_claims": len(claims),
+            "filled_optional_fields": filled_optional,
+        },
+    }
+
+
 def _append_visual_aids(lines: list[str], aids: list[dict]) -> None:
     """Render a list of visual aids into the card lines."""
     if not aids:

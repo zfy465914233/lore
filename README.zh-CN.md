@@ -49,32 +49,103 @@ Scholar Agent 内置完整的学术论文研究管线：
 
 ## 快速开始
 
-### 嵌入到已有项目
+### 第 1 步：安装
 
 ```bash
-cd my-project && git clone https://github.com/zfy465914233/scholar-agent.git
-bash scholar-agent/setup.sh
-# 重启 Claude Code 以激活
-```
-
-这将创建目录结构、复制配置模板、安装技能并构建知识索引。
-
-### 作为独立项目使用
-
-```bash
-# 克隆并安装
 git clone https://github.com/zfy465914233/scholar-agent.git
 cd scholar-agent
-pip install -r requirements.txt
-
-# 构建知识索引
-python scripts/local_index.py --output indexes/local/index.json
+pip install -e .
 ```
 
-MCP 配置已预置，启动即用：
+### 第 2 步：选择模式
 
-- **Claude Code**：`.mcp.json` 已配好，`cd` 到项目目录启动即可
-- **VS Code Copilot**：`.vscode/mcp.json` 已配好，打开项目启用 agent 模式即可
+#### 模式 A：全局（推荐）
+
+所有项目共享一个知识库。数据存储在 `~/scholar/`。
+
+```bash
+scholar-agent init
+```
+
+MCP 注册到 `~/.claude.json`（用户级），Scholar Agent 在**所有项目**中可用。
+
+#### 模式 B：项目级（独立知识库）
+
+每个项目拥有独立的知识库，存储在项目目录内。知识卡片可与代码一起进行版本管理。
+
+```bash
+cd my-project
+SCHOLAR_HOME=$(pwd)/scholar scholar-agent init    # macOS / Linux
+
+# Windows (PowerShell)
+# $env:SCHOLAR_HOME = "$PWD\scholar"
+# scholar-agent init
+```
+
+数据存储在 `my-project/scholar/`。MCP 注册到 `my-project/.mcp.json`（项目级），**仅在该项目**中可用。
+
+如果不想将知识卡片纳入版本管理，将 `scholar/` 加入 `.gitignore`；否则可以直接提交以与团队共享。
+
+#### 模式 C：开发者 / 贡献者
+
+```bash
+git clone https://github.com/zfy465914233/scholar-agent.git
+cd scholar-agent
+pip install -e .
+scholar-agent config init
+python -m pytest tests/ -v
+```
+
+## CLI 命令参考
+
+| 命令 | 说明 |
+|------|------|
+| `scholar-agent init` | 一键设置：数据目录 + 配置 + MCP 注册 |
+| `scholar-agent serve-mcp` | 启动 MCP 服务器（Claude Code 内部调用） |
+| `scholar-agent doctor` | 查看环境与配置诊断信息 |
+| `scholar-agent config show` | 显示解析后的配置 |
+| `scholar-agent config init` | 创建用户级数据目录和配置 |
+| `scholar-agent install claude --write` | 注册 MCP 到 Claude Code |
+| `scholar-agent install vscode --write` | 注册 MCP 到 VS Code Copilot |
+| `scholar-agent install opencode --write` | 注册 MCP 到 OpenCode |
+
+## 数据目录
+
+| 模式 | 默认路径 |
+|------|---------|
+| 全局 | `~/scholar/` |
+| 项目级 | `my-project/scholar/` |
+
+可通过 `SCHOLAR_HOME` 环境变量覆盖。
+
+```
+init 后的目录结构：
+  scholar/
+  ├── config/         # 配置文件
+  ├── knowledge/      # 知识卡片
+  ├── paper-notes/    # 论文分析笔记
+  ├── daily-notes/    # 每日论文推荐
+  ├── indexes/        # BM25 搜索索引
+  ├── cache/          # 缓存数据
+  └── outputs/        # 生成输出
+```
+
+## 系统依赖
+
+| 依赖 | macOS | Ubuntu / Debian | Windows |
+|------|-------|----------------|---------|
+| poppler（PDF 文本提取） | `brew install poppler` | `sudo apt install poppler-utils` | `winget install poppler` 或 `choco install poppler` |
+| Python 3.10+ | `brew install python` | `sudo apt install python3` | [python.org](https://www.python.org/downloads/) |
+
+## 推荐工作流
+
+为获得最佳分析质量，建议按以下顺序操作：
+
+1. **下载论文**：`download_paper("2510.24701", title="Paper Title", domain="LLM")`
+2. **提取图片**：`extract_paper_images("2510.24701")`（自动检测本地 PDF）
+3. **深度分析**：`analyze_paper(paper_json)`（自动检测本地 PDF，提取全文）
+
+> **提示**：在分析前下载 PDF 可以启用全文提取，生成包含具体数据、公式和实验结果的高质量笔记。没有本地 PDF 时，分析仅基于摘要。
 
 ## MCP 工具
 
@@ -106,6 +177,12 @@ MCP 配置已预置，启动即用：
 ### .scholar.json
 
 `.scholar.json` 配置知识库路径和学术研究设置。完整示例见 [`.scholar.example.json`](.scholar.example.json)。
+
+主要配置项：
+- `knowledge_dir` — 知识卡片目录路径
+- `index_path` — BM25 搜索索引路径
+- `academic.research_interests` — 研究领域、关键词和 arXiv 分类
+- `academic.scoring` — 论文评分权重与维度
 
 ### 环境变量
 
