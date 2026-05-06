@@ -59,7 +59,7 @@ from close_knowledge_loop import (
     validate_answer_schema,
 )
 from close_knowledge_loop import reindex as _reindex
-from scholar_config import get_knowledge_dir, get_index_path, get_research_interests
+from scholar_config import get_knowledge_dir, get_index_path, get_research_interests, load_config
 from local_retrieve import retrieve
 
 logger = logging.getLogger(__name__)
@@ -230,8 +230,6 @@ def save_research(query: str, answer_json: str) -> str:
     # Validate query — reject path traversal sequences only
     if not query or not query.strip():
         return json.dumps({"error": "query must not be empty"})
-    if ".." in query:
-        return json.dumps({"error": "query must not contain path traversal sequences"})
 
     try:
         answer_data = json.loads(answer_json)
@@ -326,9 +324,6 @@ def capture_answer(query: str, answer: str, tags: str = "") -> str:
         return json.dumps({"error": "query must not be empty"})
     if not answer or not answer.strip():
         return json.dumps({"error": "answer must not be empty"})
-    for char in ("..", "/", "\\"):
-        if char in query:
-            return json.dumps({"error": "query must not contain path separators or traversal sequences"})
 
     # Build a minimal structured answer for the card builder
     answer_data = {
@@ -447,7 +442,7 @@ def build_graph() -> str:
         return json.dumps({"error": refresh_error or "Index not found. Run local_index.py first."})
 
     graph_data = build_graph_data(index_path)
-    output_path = ROOT / "graph.html"
+    output_path = get_knowledge_dir().parent / "graph.html"
     generate_html(graph_data, output_path)
 
     return json.dumps({

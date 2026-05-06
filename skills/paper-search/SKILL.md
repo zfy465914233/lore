@@ -43,10 +43,10 @@ You are the Paper Searcher for OrbitOS.
 
 ```bash
 # 按标题搜索
-grep -r -i "查询关键词" "20_Research/Papers/ --include="*.md"
+grep -r -i "查询关键词" "20_Research/Papers/" --include="*.md"
 
 # 按作者搜索
-grep -r "作者姓名" "20_Research/Papers/ --include="*.md" | grep -i "author: 作者姓名"
+grep -r "作者姓名" "20_Research/Papers/" --include="*.md" | grep -i "author: 作者姓名"
 
 # 按领域搜索
 grep -r "关键词" "20_Research/Papers/领域/"

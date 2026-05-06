@@ -620,88 +620,18 @@ Canvas 创建步骤：
 
 #### 理论贡献
 - **贡献1**：[详细描述理论贡献]
-  - 创新点：[手动分步执行（用于调试）
-
-#### 步骤0：初始化环境
-```bash
-# 创建工作目录
-mkdir -p /tmp/paper_analysis
-cd /tmp/paper_analysis
-```
-
-#### 步骤1：识别论文
-```bash
-# 搜索已有笔记
-find "${VAULT_ROOT}/paper-notes" -name "*${PAPER_ID}*" -type f
-```
-
-#### 步骤2：获取论文内容
-```bash
-# 下载PDF和源码（见步骤2.1、2.2、2.3）
-
-# 或者从已有数据读取
-cat /tmp/paper_analysis/{1-introduction,2-joint-optimization,3-agent-swarm,5-eval}.tex
-```
-
-#### 步骤3：复制图片
-```bash
-# 使用extract-paper-images skill
-/extract-paper-images "$PAPER_ID" "$DOMAIN" "$TITLE"
-```
-
-#### 步骤4：生成笔记
-```bash
-# 使用外部脚本生成笔记
-python "scripts/generate_note.py" --paper-id "$PAPER_ID" --title "$TITLE" --authors "$AUTHORS" --domain "$DOMAIN" --language "$LANGUAGE"
-```
-
-#### 步骤4.5：提取图片并嵌入笔记（必须执行）
-```bash
-# 1. 提取论文图片（调用 extract-paper-images skill）
-/extract-paper-images "$PAPER_ID" "$DOMAIN" "$TITLE"
-
-# 2. 将图片嵌入到生成的笔记 markdown 中
-# 使用 Edit 工具，根据图片内容将 ![[filename|800]] 插入到笔记的对应章节：
-#   - 架构图 → 方法概述/方法框架
-#   - 实验结果图 → 实验结果
-#   - 对比/消融图 → 深度分析
-# 每张图附带中文 caption：> 图X：描述
-# 至少插入3张图片（如果有的话）
-```
-
-#### 步骤5：更新图谱
-```bash
-# 使用外部脚本更新知识图谱
-python "scripts/update_graph.py" --paper-id "$PAPER_ID" --title "$TITLE" --domain "$DOMAIN" --score 8.8 --language "$LANGUAGE"
-```
-
-#### 步骤6：使用obsidian-markdown skill修复格式
-
-分析完成后，调用`/obsidian-markdown`来确保frontmatter格式正确，然后手动补充详细内容。
-
-### 完整工作流程示例
-
-**场景1：分析arXiv论文（有网络访问）**
-```bash
-# 一键执行
-bash run_full_analysis.sh 2602.02276 "Kimi K2.5: Visual Agentic Intelligence" "Kimi Team" "智能体"
-```
-
-**场景2：分析本地PDF（无网络访问）**
-```bash
-# 手动上传PDF
-cp /path/to/local.pdf /tmp/paper_analysis/[ID].pdf
-
-# 执行分析（跳过步骤2的下载）
-python3 run_paper_analysis.py [ID] [TITLE] [AUTHORS] [DOMAIN] --local-pdf /tmp/paper_analysis/[ID].pdf
-```
-
-### 新理论/新方法/新视角]
+  - 创新点：[该贡献的创新之处]
   - 学术价值：[对学术界的价值]
   - 影响范围：[影响的研究领域]
 
 - **贡献2**：[详细描述理论贡献]
   [类似格式]
+
+#### 新理论/新方法/新视角
+- **新理论/方法**：[描述新理论、新方法或新视角]
+  - 创新点：[该视角的创新之处]
+  - 学术价值：[对学术界的价值]
+  - 影响范围：[影响的研究领域]
 
 #### 实际应用价值
 - **应用场景1**：[应用场景描述]

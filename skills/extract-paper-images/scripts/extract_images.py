@@ -8,7 +8,11 @@
 3. PDF直接提取的图片（最后备选）
 """
 
-import fitz  # PyMuPDF
+try:
+    import fitz  # PyMuPDF
+    HAS_FITZ = True
+except ImportError:
+    HAS_FITZ = False
 import os
 import json
 import sys
@@ -225,6 +229,10 @@ def main():
         datefmt='%H:%M:%S',
         stream=sys.stderr,
     )
+
+    if not HAS_FITZ:
+        print("Error: PyMuPDF (fitz) is required. Install with: pip install PyMuPDF", file=sys.stderr)
+        sys.exit(1)
 
     if len(sys.argv) < 4:
         print("Usage: python extract_images.py <paper_id> <output_dir> <index_file>")

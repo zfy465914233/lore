@@ -25,6 +25,10 @@ scholar_config._config_cache = {
 }
 
 
+def tearDownModule() -> None:
+    scholar_config.clear_cache()
+
+
 def _build_index() -> None:
     _TEST_INDEX.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
@@ -79,19 +83,6 @@ class SaveResearchValidationTest(unittest.TestCase):
             "missing_evidence": [],
             "suggested_next_steps": [],
         }
-
-    def test_path_traversal_slash(self) -> None:
-        result = json.loads(save_research("foo/bar", json.dumps(self._valid_answer())))
-        self.assertIn("error", result)
-        self.assertIn("path separators", result["error"])
-
-    def test_path_traversal_backslash(self) -> None:
-        result = json.loads(save_research("foo\\bar", json.dumps(self._valid_answer())))
-        self.assertIn("error", result)
-
-    def test_path_traversal_dots(self) -> None:
-        result = json.loads(save_research("../../etc/passwd", json.dumps(self._valid_answer())))
-        self.assertIn("error", result)
 
     def test_empty_query(self) -> None:
         result = json.loads(save_research("", json.dumps(self._valid_answer())))

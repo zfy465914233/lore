@@ -26,14 +26,14 @@ docs = [
 ]
 bm25 = BM25(docs)
 results = bm25.top_k("Markov chain", k=3)
-print([r[0] for r in results])
+import json as _j; print(_j.dumps([r[0] for r in results]))
 """],
             capture_output=True,
             text=True,
             cwd=SCRIPTS,
         )
         self.assertEqual(0, result.returncode, msg=result.stderr)
-        indices = eval(result.stdout.strip())
+        indices = json.loads(result.stdout.strip())
         # LP doc is index 1; it should NOT be the top result
         self.assertNotEqual(indices[0], 1, "LP doc should not rank first for a Markov query")
 

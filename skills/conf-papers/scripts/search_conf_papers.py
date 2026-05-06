@@ -772,7 +772,7 @@ def main():
 
     # 准备输出
     output = {
-        "year": args.year,
+        "year": year,
         "conferences_searched": venues,
         "total_found": total_found,
         "total_filtered": total_filtered,

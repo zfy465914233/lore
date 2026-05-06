@@ -39,7 +39,7 @@ def _detect_mcp_command() -> tuple[str, list[str]]:
     except ImportError:
         pass
     else:
-        return sys.executable, []
+        return sys.executable, ["-m", "fastmcp", "run"]
 
     local_fastmcp = Path(sys.executable).with_name("fastmcp")
     if local_fastmcp.exists() and os.access(local_fastmcp, os.X_OK):

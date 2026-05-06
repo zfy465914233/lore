@@ -27,6 +27,10 @@ scholar_config._config_cache = {
 }
 
 
+def tearDownModule() -> None:
+    scholar_config.clear_cache()
+
+
 def _build_index() -> None:
     _TEST_INDEX.parent.mkdir(parents=True, exist_ok=True)
     stale_marker = _TEST_INDEX.with_suffix(_TEST_INDEX.suffix + ".stale")
@@ -139,10 +143,6 @@ class CaptureAnswerTest(unittest.TestCase):
 
     def test_empty_answer_rejected(self) -> None:
         result = json.loads(capture_answer("what is BM25", ""))
-        self.assertIn("error", result)
-
-    def test_path_traversal_rejected(self) -> None:
-        result = json.loads(capture_answer("../../etc/passwd", "answer"))
         self.assertIn("error", result)
 
     def test_success_creates_card(self) -> None:

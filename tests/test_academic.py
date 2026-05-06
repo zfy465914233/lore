@@ -74,8 +74,8 @@ class TestScoring(unittest.TestCase):
             "source": "arxiv",
         }]
         scored = self.score_papers(papers, self.config)
-        if scored:
-            self.assertGreater(scored[0]["scores"]["recency"], 0.5)
+        self.assertGreaterEqual(len(scored), 1, "Paper should be scored")
+        self.assertGreater(scored[0]["scores"]["recency"], 0.5)
 
     def test_recency_score_beyond_180_days(self):
         papers = [{
@@ -87,8 +87,8 @@ class TestScoring(unittest.TestCase):
             "source": "arxiv",
         }]
         scored = self.score_papers(papers, self.config)
-        if scored:
-            self.assertLessEqual(scored[0]["scores"]["recency"], 0.3)
+        self.assertGreaterEqual(len(scored), 1, "Paper should be scored")
+        self.assertLessEqual(scored[0]["scores"]["recency"], 0.3)
 
     def test_score_papers_batch(self):
         papers = [
