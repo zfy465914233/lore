@@ -491,40 +491,15 @@ class TestDownloadArxivPdf(unittest.TestCase):
 
 
 class TestExtractPdfText(unittest.TestCase):
-    def test_returns_empty_when_no_extractors(self) -> None:
+    def test_returns_empty_when_no_fitz(self) -> None:
         from academic import image_extractor
-        original_docling = image_extractor.HAS_DOCLING
         original_fitz = image_extractor.HAS_FITZ
-        image_extractor.HAS_DOCLING = False
         image_extractor.HAS_FITZ = False
         try:
             result = image_extractor.extract_pdf_text("/nonexistent.pdf")
             self.assertEqual(result, "")
         finally:
-            image_extractor.HAS_DOCLING = original_docling
             image_extractor.HAS_FITZ = original_fitz
-
-    def test_docling_fallback_to_pymupdf(self) -> None:
-        """When HAS_DOCLING=True but docling fails, falls back to PyMuPDF."""
-        from academic import image_extractor
-        if not image_extractor.HAS_FITZ:
-            self.skipTest("PyMuPDF not installed")
-        import fitz
-        original_docling = image_extractor.HAS_DOCLING
-        image_extractor.HAS_DOCLING = True  # Pretend docling is available
-        try:
-            with tempfile.TemporaryDirectory() as tmp:
-                pdf_path = os.path.join(tmp, "test.pdf")
-                doc = fitz.open()
-                page = doc.new_page()
-                page.insert_text((72, 72), "Fallback test content.")
-                doc.save(pdf_path)
-                doc.close()
-                # docling will fail (not actually importable or convert will error)
-                result = image_extractor.extract_pdf_text(pdf_path)
-                self.assertIn("Fallback test content", result)
-        finally:
-            image_extractor.HAS_DOCLING = original_docling
 
     def test_extract_text_from_real_pdf(self) -> None:
         """Test text extraction from a PDF created with PyMuPDF."""
