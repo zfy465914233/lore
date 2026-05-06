@@ -84,7 +84,9 @@ except ImportError:
 def _optional_dep_warnings() -> list[str]:
     warnings: list[str] = []
     if importlib.util.find_spec("fitz") is None:
-        warnings.append("PyMuPDF not installed — PDF text and image extraction will not work. Install with: pip install PyMuPDF")
+        warnings.append("PyMuPDF not installed — PDF image extraction will not work. Install with: pip install PyMuPDF")
+    if importlib.util.find_spec("docling") is None:
+        warnings.append("docling not installed — falling back to basic PDF text extraction. For structured output (formulas, tables, sections): pip install docling")
     return warnings
 
 

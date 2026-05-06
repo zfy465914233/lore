@@ -30,6 +30,12 @@ except ImportError:
     HAS_FITZ = False
 
 try:
+    from docling.document_converter import DocumentConverter
+    HAS_DOCLING = True
+except ImportError:
+    HAS_DOCLING = False
+
+try:
     import requests as _requests
     HAS_REQUESTS = True
 except ImportError:
@@ -109,17 +115,29 @@ def download_arxiv_pdf(arxiv_id: str, output_dir: str) -> str:
 
 
 def extract_pdf_text(pdf_path: str, max_chars: int = 80000) -> str:
-    """Extract full text from a PDF using PyMuPDF.
+    """Extract text from a PDF — Docling (structured Markdown) or PyMuPDF (plain text).
+
+    Docling preserves document structure (sections, formulas, tables) and outputs
+    Markdown. Falls back to PyMuPDF for plain text if Docling is unavailable.
 
     Args:
         pdf_path: Path to the PDF file.
         max_chars: Maximum characters to extract (~20k tokens at 4 chars/token).
 
     Returns:
-        Extracted text, or empty string if PyMuPDF is unavailable or extraction fails.
+        Extracted text, or empty string if extraction fails.
     """
+    if HAS_DOCLING:
+        try:
+            converter = DocumentConverter()
+            result = converter.convert(pdf_path)
+            text = result.document.export_to_markdown()
+            return text[:max_chars]
+        except Exception as e:
+            logger.warning("Docling extraction failed, falling back to PyMuPDF: %s", e)
+
     if not HAS_FITZ:
-        logger.warning("PyMuPDF not installed, cannot extract text from PDF")
+        logger.warning("Neither docling nor PyMuPDF installed, cannot extract text from PDF")
         return ""
     try:
         doc = fitz.open(pdf_path)

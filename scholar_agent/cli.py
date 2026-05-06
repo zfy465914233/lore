@@ -374,8 +374,11 @@ def _doctor_payload() -> dict[str, object]:
         except Exception:
             pass
 
-    # PyMuPDF (PDF text/image extraction)
+    # PyMuPDF (PDF image extraction)
     pymupdf_available = importlib.util.find_spec("fitz") is not None
+
+    # Docling (structured PDF text extraction)
+    docling_available = importlib.util.find_spec("docling") is not None
 
     # fastmcp
     fastmcp_available = importlib.util.find_spec("fastmcp") is not None
@@ -394,6 +397,7 @@ def _doctor_payload() -> dict[str, object]:
         "dependencies": {
             "fastmcp": fastmcp_available,
             "PyMuPDF": pymupdf_available,
+            "docling": docling_available,
         },
         "mcp": {
             "claude_registered": claude_registered,
@@ -425,9 +429,11 @@ def _format_doctor_text(payload: dict[str, object]) -> str:
             icon = "ok" if ok else "MISSING"
             lines.append(f"  {name}: {icon}")
             if not ok and name == "PyMuPDF":
-                problems.append("PyMuPDF not installed — PDF text and image extraction will not work. Install with: pip install PyMuPDF")
+                problems.append("PyMuPDF not installed — PDF image extraction will not work. Install with: pip install PyMuPDF")
             if not ok and name == "fastmcp":
                 problems.append("fastmcp not found — MCP server will not start. Install with: pip install -e .")
+            if not ok and name == "docling":
+                problems.append("docling not installed — falling back to basic PDF text extraction. For structured output: pip install docling")
 
     # MCP registration
     mcp = payload.get("mcp", {})
