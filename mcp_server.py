@@ -40,6 +40,7 @@ Configuration — add to .mcp.json in the project root:
 
 from __future__ import annotations
 
+import importlib
 import json
 import logging
 import os
