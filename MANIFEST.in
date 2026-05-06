@@ -1,0 +1,4 @@
+include .scholar.json
+include schemas/answer.schema.json
+recursive-include templates *
+recursive-include skills *
