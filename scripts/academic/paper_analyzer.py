@@ -548,7 +548,11 @@ def _generate_zh_note(
     tags_yaml = "\n".join(f"  - {tag}" for tag in tags)
 
     score_str = f"{scores.get('recommendation', 0):.1f}/10" if scores else "[SCORE]/10"
-    related_yaml = "\n".join(f'  - "{rp}"' for rp in (related_papers or [])) or "[]"
+    _rps = related_papers or []
+    if _rps:
+        related_yaml = "\n" + "\n".join(f'  - "{rp}"' for rp in _rps)
+    else:
+        related_yaml = " []"
     affil_str = "、".join(affiliations[:3]) if affiliations else "<!-- LLM: 从论文中提取作者机构信息 -->"
 
     # --- Links ---
@@ -580,8 +584,7 @@ date: "{date}"
 status: skeleton
 tags:
 {tags_yaml}
-related_papers:
-{related_yaml}
+related_papers:{related_yaml}
 quality_score: "{score_str}"
 created: "{date}"
 updated: "{date}"
@@ -680,7 +683,11 @@ def _generate_en_note(
     tags_yaml = "\n".join(f"  - {tag}" for tag in tags)
 
     score_str = f"{scores.get('recommendation', 0):.1f}/10" if scores else "[SCORE]/10"
-    related_yaml = "\n".join(f'  - "{rp}"' for rp in (related_papers or [])) or "[]"
+    _rps = related_papers or []
+    if _rps:
+        related_yaml = "\n" + "\n".join(f'  - "{rp}"' for rp in _rps)
+    else:
+        related_yaml = " []"
     affil_str = ", ".join(affiliations[:3]) if affiliations else "<!-- LLM: Extract author affiliations from the paper -->"
 
     # --- Links ---
@@ -712,8 +719,7 @@ date: "{date}"
 status: skeleton
 tags:
 {tags_yaml}
-related_papers:
-{related_yaml}
+related_papers:{related_yaml}
 quality_score: "{score_str}"
 created: "{date}"
 updated: "{date}"
