@@ -1060,7 +1060,7 @@ AUTHORS="${3:-Kimi Team}"
 DOMAIN="${4:-其他}"
 
 # 执行完整流程
-python "scripts/generate_note.py" --paper-id "$PAPER_ID" --title "$TITLE" --authors "$AUTHORS" --domain "$DOMAIN" --language "$LANGUAGE" --language "$LANGUAGE" || \
+python "scripts/generate_note.py" --paper-id "$PAPER_ID" --title "$TITLE" --authors "$AUTHORS" --domain "$DOMAIN" --language "$LANGUAGE" || \
     echo "笔记生成脚本执行失败"
 
 # 提取图片并嵌入笔记（必须执行）

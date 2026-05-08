@@ -717,7 +717,7 @@ def _run_init(
     if not skip_register:
         # Detect project-local mode: SCHOLAR_HOME is set and differs from default
         scholar_home_env = os.environ.get("SCHOLAR_HOME", "").strip()
-        default_home = str(get_user_home())
+        default_home = str(get_user_home(env={}))
         is_project_local = bool(scholar_home_env) and Path(scholar_home_env).resolve() != Path(default_home).resolve()
         scope = "project" if is_project_local else "user"
 
@@ -730,9 +730,9 @@ def _run_init(
                         scholar_home=scholar_home_env or None,
                     )
                 elif h == "vscode":
-                    result = vscode_installer.write_user_config(academic=academic)
+                    result = vscode_installer.write_user_config(academic=academic, scholar_home=scholar_home_env or None)
                 elif h == "opencode":
-                    result = opencode_installer.write_user_config(academic=academic)
+                    result = opencode_installer.write_user_config(academic=academic, scholar_home=scholar_home_env or None)
                 else:
                     continue
                 register_results.append(result)

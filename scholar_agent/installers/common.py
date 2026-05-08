@@ -27,12 +27,12 @@ def build_stdio_server(*, profile: str, toolset: str, academic: bool, scholar_ho
     }
 
 
-def build_local_server(*, profile: str, toolset: str, academic: bool) -> dict[str, object]:
+def build_local_server(*, profile: str, toolset: str, academic: bool, scholar_home: str | None = None) -> dict[str, object]:
     return {
         "type": "local",
         "command": ["scholar-agent", "serve-mcp"],
         "enabled": True,
-        "environment": build_shared_env(profile=profile, toolset=toolset, academic=academic),
+        "environment": build_shared_env(profile=profile, toolset=toolset, academic=academic, scholar_home=scholar_home),
     }
 
 

@@ -46,6 +46,7 @@ import logging
 import os
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Ensure scripts/ is importable
@@ -116,6 +117,16 @@ def _acquire_refresh_lock(lock_path: Path) -> bool:
     try:
         fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     except FileExistsError:
+        # Stale lock detection: if older than 60s, force-remove and retry
+        try:
+            age = time.time() - lock_path.stat().st_mtime
+            if age > 60:
+                lock_path.unlink()
+                fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.close(fd)
+                return True
+        except (OSError, FileNotFoundError):
+            pass
         return False
     else:
         os.close(fd)
@@ -454,7 +465,7 @@ def ingest_source(source: str, title: str = "", tags: str = "") -> str:
         auto_title = title or content.split("\n")[0][:80]
 
     if not auto_title or not auto_title.strip():
-        auto_title = f"untitled-{__import__('datetime').datetime.now(__import__('datetime').timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+        auto_title = f"untitled-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
 
     if not content:
         return json.dumps({"error": "No content extracted from source"})
@@ -687,7 +698,6 @@ if SCHOLAR_ACADEMIC:
         from academic.arxiv_search import _load_config
 
         if year <= 0:
-            from datetime import datetime
             year = datetime.now().year
 
         venue_list = [v.strip() for v in venues.split(",") if v.strip()]
@@ -951,7 +961,9 @@ if SCHOLAR_ACADEMIC:
             from academic.image_extractor import download_arxiv_pdf
             # download_arxiv_pdf saves as {arxiv_id}.pdf, rename to title-based name
             local_path = download_arxiv_pdf(arxiv_id, str(paper_dir))
-            if local_path and title and title.strip():
+            if not local_path:
+                return json.dumps({"error": "Download returned no path", "pdf_path": None, "arxiv_id": arxiv_id})
+            if title and title.strip():
                 final_path = paper_dir / pdf_filename
                 Path(local_path).rename(final_path)
                 local_path = str(final_path)

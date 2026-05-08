@@ -61,6 +61,23 @@ S2_FIELDS = "title,abstract,citationCount,influentialCitationCount,externalIds,u
 S2_RATE_LIMIT_WAIT = 30
 S2_API_KEY = os.environ.get("S2_API_KEY", "")
 
+
+def _load_s2_key() -> str:
+    """Load S2 API key from env or config file."""
+    global S2_API_KEY
+    if S2_API_KEY:
+        return S2_API_KEY
+    try:
+        import yaml
+        from pathlib import Path
+        cfg_path = Path(__file__).resolve().parents[2] / "config" / "config.yaml"
+        if cfg_path.exists():
+            cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+            S2_API_KEY = cfg.get("s2_api_key", "")
+    except Exception:
+        pass
+    return S2_API_KEY
+
 DBLP_API_URL = "https://dblp.org/search/publ/api"
 
 
@@ -219,8 +236,9 @@ def enrich_with_semantic_scholar(
         return papers
 
     headers = {"User-Agent": "ScholarAgent/1.0"}
-    if S2_API_KEY:
-        headers["x-api-key"] = S2_API_KEY
+    api_key = _load_s2_key()
+    if api_key:
+        headers["x-api-key"] = api_key
 
     for i, paper in enumerate(papers):
         title = paper.get("title", "")

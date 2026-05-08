@@ -14,7 +14,7 @@ from scholar_agent.config.profiles import get_active_profile
 
 
 logger = logging.getLogger(__name__)
-_PATH_KEYS = ("knowledge_dir", "index_path", "scholar_dir")
+_PATH_KEYS = ("knowledge_dir", "index_path", "scholar_dir", "paper_notes_dir", "daily_notes_dir")
 
 
 @dataclass(frozen=True)

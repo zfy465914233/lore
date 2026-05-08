@@ -394,7 +394,7 @@ def search_and_score(
             all_scored.extend(scored_query)
 
     # Step 3: merge and dedup
-    all_scored.sort(key=lambda p: p["scores"]["recommendation"], reverse=True)
+    all_scored.sort(key=lambda p: p.get("scores", {}).get("recommendation", 0), reverse=True)
 
     seen_ids: set[str] = set()
     seen_titles: set[str] = set()

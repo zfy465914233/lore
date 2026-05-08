@@ -6,13 +6,14 @@ import importlib.util
 import importlib.metadata as metadata
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from typing import Mapping
-from urllib.parse import unquote, urlparse
+from urllib.parse import urlparse
 
 
 PACKAGE_NAME = "scholar-agent"
@@ -23,7 +24,9 @@ def _file_url_to_path(raw_url: str) -> Path | None:
     parsed = urlparse(raw_url)
     if parsed.scheme != "file":
         return None
-    return Path(unquote(parsed.path)).resolve()
+    # url2pathname handles platform quirks (e.g. leading /C: on Windows)
+    import urllib.request
+    return Path(urllib.request.url2pathname(parsed.path)).resolve()
 
 
 def _load_direct_url(dist_info_path: Path) -> dict[str, object] | None:
@@ -51,10 +54,18 @@ def _resolve_install_source(before: dict[str, object], source_path: str | Path |
 
 
 def _find_built_wheel(wheel_dir: Path) -> Path:
-    wheels = sorted(wheel_dir.glob("scholar_agent-*.whl"))
+    wheels = list(wheel_dir.glob("scholar_agent-*.whl"))
     if not wheels:
         raise RuntimeError(f"Failed to build a scholar-agent wheel in {wheel_dir}")
-    return wheels[-1]
+    if len(wheels) == 1:
+        return wheels[0]
+
+    def _version_tuple(p: Path) -> tuple[int, ...]:
+        m = re.search(r"scholar_agent-(\d+(?:\.\d+)*)", p.name)
+        if not m:
+            return (0,)
+        return tuple(int(x) for x in m.group(1).split("."))
+    return max(wheels, key=_version_tuple)
 
 
 def _resolve_output_dir(resolved_source: Path, output_dir: str | Path | None) -> Path:
@@ -85,7 +96,12 @@ def _build_wheel_artifact(
         build_command.append("--no-deps")
     build_command.append(str(source_path))
 
-    build_completed = subprocess.run(build_command, check=True, capture_output=True, text=True)
+    try:
+        build_completed = subprocess.run(build_command, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"pip wheel build failed (exit {exc.returncode}):\n{exc.stderr or exc.stdout}"
+        ) from exc
     built_wheel = _find_built_wheel(wheel_dir)
     return build_command, build_completed, built_wheel
 
@@ -111,12 +127,15 @@ def _resolve_pipx_command(
 
 
 def _load_pipx_list(pipx_command_prefix: list[str]) -> dict[str, object] | None:
-    completed = subprocess.run(
-        [*pipx_command_prefix, "list", "--json"],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        completed = subprocess.run(
+            [*pipx_command_prefix, "list", "--json"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError:
+        return None
     try:
         payload = json.loads(completed.stdout)
     except json.JSONDecodeError:
@@ -156,10 +175,11 @@ def _default_pipx_bin_dir(env: Mapping[str, str] | None = None) -> Path:
     override = env_map.get("PIPX_BIN_DIR", "").strip()
     if override:
         return Path(override).expanduser().resolve()
-    home = Path.home()
     if os.name == "nt":
-        return (home / ".local" / "bin").resolve()
-    return (home / ".local" / "bin").resolve()
+        local_appdata = env_map.get("LOCALAPPDATA", "").strip()
+        if local_appdata:
+            return (Path(local_appdata) / "pipx" / "bin").resolve()
+    return (Path.home() / ".local" / "bin").resolve()
 
 
 def _default_pipx_home(env: Mapping[str, str] | None = None) -> Path:
@@ -167,10 +187,11 @@ def _default_pipx_home(env: Mapping[str, str] | None = None) -> Path:
     override = env_map.get("PIPX_HOME", "").strip()
     if override:
         return Path(override).expanduser().resolve()
-    home = Path.home()
     if os.name == "nt":
-        return (home / "pipx").resolve()
-    return (home / ".local" / "pipx").resolve()
+        local_appdata = env_map.get("LOCALAPPDATA", "").strip()
+        if local_appdata:
+            return (Path(local_appdata) / "pipx").resolve()
+    return (Path.home() / ".local" / "pipx").resolve()
 
 
 def _resolve_optional_path(raw_path: str | Path | None) -> Path | None:
@@ -303,8 +324,18 @@ def install_with_pipx(
             )
             uninstall_completed: subprocess.CompletedProcess[str] | None = None
             if uninstall_command is not None:
-                uninstall_completed = subprocess.run(uninstall_command, check=True, capture_output=True, text=True)
-            install_completed = subprocess.run(install_command, check=True, capture_output=True, text=True)
+                try:
+                    uninstall_completed = subprocess.run(uninstall_command, check=True, capture_output=True, text=True)
+                except subprocess.CalledProcessError as exc:
+                    raise RuntimeError(
+                        f"pipx uninstall failed (exit {exc.returncode}):\n{exc.stderr or exc.stdout}"
+                    ) from exc
+            try:
+                install_completed = subprocess.run(install_command, check=True, capture_output=True, text=True)
+            except subprocess.CalledProcessError as exc:
+                raise RuntimeError(
+                    f"pipx install failed (exit {exc.returncode}):\n{exc.stderr or exc.stdout}"
+                ) from exc
 
             build_payload = {
                 "source_path": str(resolved_source),
@@ -344,8 +375,18 @@ def install_with_pipx(
     )
     uninstall_completed: subprocess.CompletedProcess[str] | None = None
     if uninstall_command is not None:
-        uninstall_completed = subprocess.run(uninstall_command, check=True, capture_output=True, text=True)
-    install_completed = subprocess.run(install_command, check=True, capture_output=True, text=True)
+        try:
+            uninstall_completed = subprocess.run(uninstall_command, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(
+                f"pipx uninstall failed (exit {exc.returncode}):\n{exc.stderr or exc.stdout}"
+            ) from exc
+    try:
+        install_completed = subprocess.run(install_command, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"pipx install failed (exit {exc.returncode}):\n{exc.stderr or exc.stdout}"
+        ) from exc
 
     pipx_bin_dir = _default_pipx_bin_dir(env)
     return {
@@ -456,7 +497,12 @@ def install_standalone(
         if not with_deps:
             install_command.append("--no-deps")
         install_command.append(PACKAGE_NAME)
-        install_completed = subprocess.run(install_command, check=True, capture_output=True, text=True)
+        try:
+            install_completed = subprocess.run(install_command, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(
+                f"pip install failed (exit {exc.returncode}):\n{exc.stderr or exc.stdout}"
+            ) from exc
 
     after = get_installation_state()
     return {

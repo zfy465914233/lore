@@ -418,17 +418,17 @@ def build_knowledge_card(
         section = va.get("after_section") or None
         va_by_section.setdefault(section, []).append(va)
 
-    # Build frontmatter
+    # Build frontmatter — json.dumps produces valid YAML double-quoted strings
     lines = [
         "---",
-        f"id: {card_id}",
-        f"title: {note_label} — {query}",
+        f"id: {json.dumps(card_id)}",
+        f"title: {json.dumps(f'{note_label} — {query}')}",
         f"type: {card_type}",
         f"domain: {major_domain}",
         "tags:",
     ]
     if topic:
-        lines.insert(len(lines) - 1, f"topic: {topic}")
+        lines.insert(len(lines) - 1, f"topic: {json.dumps(topic)}")
     for tag in base_tags:
         lines.append(f"  - {tag}")
     if source_urls:
@@ -696,8 +696,16 @@ def main() -> int:
     # Load inputs
     research_data = None
     if args.research and args.research.exists():
-        research_data = json.loads(args.research.read_text(encoding="utf-8"))
-    answer_data = json.loads(args.answer.read_text(encoding="utf-8"))
+        try:
+            research_data = json.loads(args.research.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.error("Failed to load research file %s: %s", args.research, exc)
+            return 1
+    try:
+        answer_data = json.loads(args.answer.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.error("Failed to load answer file %s: %s", args.answer, exc)
+        return 1
 
     # Step 0: Validate answer against schema
     schema_warnings = validate_answer_schema(answer_data)
@@ -726,8 +734,10 @@ def main() -> int:
     )
     if verify.returncode == 0:
         results = json.loads(verify.stdout)
+        slug = safe_slug(args.query)
+        expected_prefixes = (f"knowledge-{slug}", f"method-{slug}")
         found = any(
-            f"research-{safe_slug(args.query)}" in r.get("doc_id", "")
+            r.get("doc_id", "").startswith(expected_prefixes)
             for r in results.get("results", [])
         )
         status = "verified retrievable" if found else "written but not in top results"

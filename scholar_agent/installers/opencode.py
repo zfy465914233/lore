@@ -15,11 +15,11 @@ from scholar_agent.installers.common import (
 )
 
 
-def build_user_config_fragment(*, profile: str = "default", toolset: str = "default", academic: bool = True) -> dict[str, object]:
+def build_user_config_fragment(*, profile: str = "default", toolset: str = "default", academic: bool = True, scholar_home: str | None = None) -> dict[str, object]:
     return {
         "$schema": "https://opencode.ai/config.json",
         "mcp": {
-            "scholar-agent": build_local_server(profile=profile, toolset=toolset, academic=academic),
+            "scholar-agent": build_local_server(profile=profile, toolset=toolset, academic=academic, scholar_home=scholar_home),
         },
     }
 
@@ -38,9 +38,10 @@ def write_user_config(
     toolset: str = "default",
     academic: bool = True,
     path: str | Path | None = None,
+    scholar_home: str | None = None,
 ) -> dict[str, object]:
     target_path = Path(path) if path is not None else get_default_user_config_path()
-    payload = build_user_config_fragment(profile=profile, toolset=toolset, academic=academic)
+    payload = build_user_config_fragment(profile=profile, toolset=toolset, academic=academic, scholar_home=scholar_home)
     server_payload = payload["mcp"]["scholar-agent"]
     existing = load_json_file(target_path)
     merged = merge_named_server(

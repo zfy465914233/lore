@@ -66,13 +66,13 @@ def innovation_pre_filter(
         # --- Relevance keywords ---
         title_boost = 0.0
         for kw in all_keywords:
-            if kw in title:
+            if re.search(rf"\b{re.escape(kw)}\b", title):
                 title_boost += 2.0
         score += min(title_boost, _MAX_HEURISTIC_TITLE_BOOST)
 
         abstract_boost = 0.0
         for kw in all_keywords:
-            if kw in abstract:
+            if re.search(rf"\b{re.escape(kw)}\b", abstract):
                 abstract_boost += 1.0
         score += min(abstract_boost, _MAX_HEURISTIC_ABSTRACT_BOOST)
 
@@ -208,10 +208,10 @@ def _parse_llm_response(raw: str, expected: int) -> list[dict]:
 
 def _fallback_heuristic(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Pure heuristic fallback when LLM is unavailable."""
+    max_h = max((c.get("_heuristic_score", 1) for c in candidates), default=1) or 1
     for p in candidates:
         p["_llm_score"] = 0.0
         p["_llm_comment"] = "(heuristic-only)"
-        max_h = max((c.get("_heuristic_score", 1) for c in candidates), default=1) or 1
         p["_innovation_final_score"] = round(p.get("_heuristic_score", 0) / max_h, 3)
 
     candidates.sort(key=lambda x: x.get("_innovation_final_score", 0), reverse=True)

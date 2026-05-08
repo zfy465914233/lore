@@ -1,11 +1,6 @@
 {
-  "knowledge_dir": "/Users/zhoufangyi/scholar-agent/knowledge",
-  "index_path": "/Users/zhoufangyi/scholar-agent/indexes/local/index.json",
-  "scholar_dir": "/Users/zhoufangyi/scholar-agent",
   "profile": "default",
   "academic": {
-    "paper_notes_dir": "/Users/zhoufangyi/scholar-agent/paper-notes",
-    "daily_notes_dir": "/Users/zhoufangyi/scholar-agent/daily-notes",
     "search": {
       "sources": [
         "arxiv",

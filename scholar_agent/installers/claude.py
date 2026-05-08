@@ -54,8 +54,8 @@ def install_user_config(
         "scholar-agent",
         json.dumps(server_payload, ensure_ascii=False),
     ]
-    remove_command = ["claude", "mcp", "remove", "scholar-agent", "-s", scope]
-    _run_claude_command(remove_command, scope=scope, cwd=cwd, check=False)
+    # add-json is upsert — no need to remove first.  Skipping the
+    # remove-then-add dance avoids leaving the user with no config if add fails.
     completed = _run_claude_command(command, scope=scope, cwd=cwd, check=True)
     return {
         "status": "ok",
