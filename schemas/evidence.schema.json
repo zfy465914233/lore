@@ -11,7 +11,7 @@
     },
     "source_type": {
       "type": "string",
-      "enum": ["github", "arxiv", "blog", "docs", "forum", "paper", "patent", "other"],
+      "enum": ["github", "arxiv", "blog", "docs", "forum", "paper", "patent", "knowledge", "other"],
       "description": "Type of source."
     },
     "url": {

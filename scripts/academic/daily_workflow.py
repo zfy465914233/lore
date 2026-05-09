@@ -318,7 +318,8 @@ def build_daily_note(
     for p in papers:
         for kw in p.get("domain_keywords", []):
             keywords.add(kw)
-    kw_yaml = ", ".join(sorted(keywords)[:20]) if keywords else ""
+    kw_list = sorted(keywords)[:20]
+    kw_yaml = ", ".join(json.dumps(kw) for kw in kw_list) if kw_list else ""
 
     track_names = []
     if tracks:

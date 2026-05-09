@@ -31,10 +31,12 @@ def parse_frontmatter(raw: str) -> tuple[dict[str, Any], str]:
     Returns (metadata_dict, body_text).
     Handles scalar values and list values (``  - item`` syntax).
     """
-    if not raw.startswith("---\n"):
+    if not raw.startswith("---\n") and not raw.startswith("---\r\n"):
         return {}, raw
 
-    parts = raw.split("\n---\n", 1)
+    # Normalize line endings for consistent splitting
+    normalized = raw.replace("\r\n", "\n")
+    parts = normalized.split("\n---\n", 1)
     if len(parts) != 2:
         return {}, raw
 

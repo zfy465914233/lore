@@ -26,6 +26,7 @@
           "evidence_ids": {
             "type": "array",
             "items": { "type": "string" },
+            "minItems": 1,
             "description": "IDs of evidence items that support this claim."
           },
           "confidence": {
@@ -33,7 +34,8 @@
             "enum": ["high", "medium", "low"],
             "description": "Confidence level of this claim based on evidence strength."
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "inferences": {
@@ -100,7 +102,8 @@
             "type": "string",
             "description": "Alt text for accessibility (defaults to caption if omitted)."
           }
-        }
+        },
+        "additionalProperties": false
       }
     }
   }

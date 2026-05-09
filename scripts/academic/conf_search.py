@@ -60,8 +60,24 @@ _S2_SEARCH_ENDPOINT = "https://api.semanticscholar.org/graph/v1/paper/search"
 _S2_PAPER_FIELDS = "externalIds,title,abstract,influentialCitationCount,citationCount,url,authors,authors.affiliations"
 _S2_THROTTLE = 30
 _S2_KEY = os.environ.get("S2_API_KEY", "")
-
 _DBLP_API = "https://dblp.org/search/publ/api"
+
+
+def _load_s2_key() -> str:
+    """Load S2 API key from env or config file."""
+    global _S2_KEY
+    if _S2_KEY:
+        return _S2_KEY
+    try:
+        import yaml
+        from pathlib import Path
+        cfg_path = Path(__file__).resolve().parents[2] / "config" / "config.yaml"
+        if cfg_path.exists():
+            cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+            _S2_KEY = cfg.get("s2_api_key", "")
+    except Exception:
+        pass
+    return _S2_KEY
 
 
 # ---------------------------------------------------------------------------
@@ -238,6 +254,10 @@ def _batch_search_s2(
     for Phase 2 matching.
     """
     cache: dict[str, dict] = {}
+
+    api_key = _load_s2_key()
+    if api_key:
+        headers["x-api-key"] = api_key
 
     for title in titles:
         if not title:
