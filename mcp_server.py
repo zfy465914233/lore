@@ -203,7 +203,7 @@ def query_knowledge(query: str, limit: int = 5) -> str:
 
 
 @tool
-def save_research(query: str, answer_json: str) -> str:
+def save_research(query: str, answer_json: str, domain: str = "") -> str:
     """Save structured research results as a knowledge card in the local knowledge base.
 
     The answer_json must conform to schemas/answer.schema.json:
@@ -214,6 +214,7 @@ def save_research(query: str, answer_json: str) -> str:
       "uncertainty": ["..."],
       "missing_evidence": ["..."],
       "suggested_next_steps": ["..."],
+      "sources": ["https://example.com/source1", "https://example.com/source2"],
       "visual_aids": [{"type": "mermaid|image_url|image_path", "content": "...", "caption": "...", "alt_text": "..."}]
     }
 
@@ -224,6 +225,8 @@ def save_research(query: str, answer_json: str) -> str:
     - DO NOT create cards with empty supporting_claims — every card needs evidence-backed claims.
     - Aim for 3+ supporting claims, inferences, uncertainty, and suggested_next_steps for high-quality cards.
     - DO NOT use this tool for trivial facts or one-sentence answers — those are not worth persisting.
+    - ALWAYS include a "sources" array with the URLs you referenced during research.
+      These are written to the card's frontmatter source_refs for provenance tracking.
 
     When to include visual_aids (auto-judge by topic):
     - Processes / workflows / data flow → mermaid flowchart or sequence diagram
@@ -256,6 +259,9 @@ def save_research(query: str, answer_json: str) -> str:
     Args:
         query: The original research question.
         answer_json: JSON string with the structured answer.
+        domain: Optional domain/folder name for the card (e.g. "quant-backtest").
+            When provided, the card is placed directly under knowledge/<domain>/
+            and all auto-routing (AI, folder matching, heuristic) is skipped.
     """
     # Validate query — reject path traversal sequences only
     if not query or not query.strip():
@@ -290,7 +296,11 @@ def save_research(query: str, answer_json: str) -> str:
 
     # Build knowledge card
     try:
-        card_path = build_knowledge_card(query, answer_data, None, get_knowledge_dir(), index_path=get_index_path())
+        domain_kw = {"domain_override": domain.strip()} if domain and domain.strip() else {}
+        card_path = build_knowledge_card(
+            query, answer_data, None, get_knowledge_dir(),
+            index_path=get_index_path(), **domain_kw,
+        )
     except Exception as e:
         return json.dumps({"error": f"Failed to write card: {e}"})
 

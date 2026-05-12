@@ -509,15 +509,57 @@ def infer_domain_with_ai(context: dict) -> dict[str, str] | None:
 
 
 def _propose_new_major_domain(query: str) -> str:
-    """Build a conservative fallback major-domain slug from the query text."""
-    normalized = query.strip().lower()
-    tokens = re.findall(r"[a-z0-9]+", normalized)
-    if tokens:
-        return "-".join(tokens[:3])
+    """Build a fallback major-domain slug from the query text.
 
+    Language-agnostic strategy:
+      1. Split query on common delimiters (punctuation, special chars, spaces)
+      2. Keep segments with substance (CJK > 1 char, Latin > 2 chars)
+      3. Take first 2-3 meaningful segments, join with "-"
+      4. If no delimiters found (unsegmented CJK), take leading 4-6 chars
+      5. Truncate to MAX_DOMAIN_SLUG_LEN
+
+    Unicode (Chinese, Japanese, Korean, etc.) directory names are valid on
+    all modern OS and file systems, so we keep them as-is rather than
+    attempting transliteration.
+    """
+    MAX_DOMAIN_SLUG_LEN = 48
+
+    # Split on common delimiters: CJK punctuation, ASCII punctuation, spaces,
+    # special chars used in titles/queries
+    segments = re.split(
+        r"[：:，,、|/\\（）()\[\]【】{}—–\-·•\s;；.!！?？…]+",
+        query.strip(),
+    )
+    segments = [s.strip() for s in segments if s.strip()]
+
+    # Classify and filter segments
+    meaningful: list[str] = []
+    for seg in segments:
+        if not seg:
+            continue
+        # Pure ASCII segment — keep if > 2 chars (skip "a", "vs", "an")
+        if re.fullmatch(r"[a-zA-Z0-9\-]+", seg):
+            if len(seg) > 2:
+                meaningful.append(seg.lower())
+        else:
+            # Contains non-ASCII (CJK, etc.) — always meaningful if > 1 char
+            if len(seg) > 1:
+                meaningful.append(seg)
+
+    if meaningful:
+        slug = "-".join(meaningful[:3])
+        return slug[:MAX_DOMAIN_SLUG_LEN]
+
+    # Fallback: unsegmented text — take leading characters
     compact = re.sub(r"\s+", "", query.strip())
+    # Strip remaining punctuation-only input (no alphanumeric or CJK content)
+    if compact and not re.search(r"[a-zA-Z0-9一-鿿ぁ-んァ-ヶ]", compact):
+        return "general"
     if compact:
-        return compact[:16]
+        # For CJK-heavy text, 4-6 chars is a good domain name length
+        # For Latin text, take up to MAX_DOMAIN_SLUG_LEN chars
+        limit = 6 if re.search(r"[一-鿿]", compact) else MAX_DOMAIN_SLUG_LEN
+        return compact[:limit]
 
     return "general"
 
@@ -554,11 +596,28 @@ def infer_domain_decision(
     *,
     card_title: str = "",
     card_summary: str = "",
+    domain_override: str | None = None,
 ) -> dict[str, object]:
     """Infer the full domain routing decision for a query.
 
-    Priority: AI primary → folder-name matching → heuristic fallback.
+    Priority: domain_override → AI primary → folder-name matching → heuristic fallback.
     """
+    # Tier 0: Explicit domain override — skip all routing logic
+    if domain_override and domain_override.strip():
+        domain_slug = domain_override.strip()
+        route_slug, output_path, subdomain = _build_route(
+            knowledge_root, domain_slug, None,
+        )
+        if _ensure_dir(output_path):
+            clear_folder_cache()
+        return {
+            "major_domain": domain_slug,
+            "subdomain": subdomain,
+            "route_slug": route_slug,
+            "output_path": output_path,
+            "decision_mode": "domain_override",
+            "reason": "Domain explicitly specified by caller.",
+        }
     context = build_routing_context(query, knowledge_root, card_title, card_summary)
     domain_tree = context.get("existing_folders", {})
 

@@ -33,3 +33,15 @@ build/
 
 # Logs
 *.log
+
+# Secrets
+config/config.yaml
+
+# Generated outputs
+outputs/
+
+# Temp files
+temp_files.txt
+
+# Test artifacts
+tests/sa_*.md

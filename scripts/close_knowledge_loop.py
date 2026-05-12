@@ -87,30 +87,45 @@ def collect_source_urls(research_data: dict | None) -> list[str]:
     return urls
 
 
-def check_contradictions(query: str, claims: list[dict], index_path: Path) -> list[dict]:
+def check_contradictions(
+    query: str, claims: list[dict], index_path: Path, *, current_domain: str = "",
+) -> list[dict]:
     """Check new claims against existing cards for potential contradictions.
 
     Uses BM25 to find similar cards, then surfaces overlapping claims.
     Returns a list of {card_id, card_title, their_claims} for related cards.
+    When *current_domain* is set, same-domain cards are preferred; cross-domain
+    cards require a higher similarity threshold (>= 15) to be included.
     """
     if not index_path.exists():
         return []
 
     try:
-        results = bm25_retrieve(query, index_path, limit=3)
+        results = bm25_retrieve(query, index_path, limit=8)
     except Exception:
         return []
 
     hits = results.get("results", [])
-    related = []
+    same_domain: list[dict] = []
+    cross_domain: list[dict] = []
     for hit in hits:
-        if hit.get("score", 0) < 1.0:
+        score = hit.get("score", 0)
+        if score < 1.0:
             continue
-        related.append({
+        entry = {
             "card_id": hit.get("doc_id", ""),
             "title": hit.get("title", ""),
-            "score": hit.get("score", 0),
-        })
+            "score": score,
+        }
+        hit_domain = hit.get("topic", "") or ""
+        if current_domain and hit_domain == current_domain:
+            same_domain.append(entry)
+        elif current_domain and score >= 15.0:
+            cross_domain.append(entry)
+        elif not current_domain:
+            same_domain.append(entry)
+
+    related = same_domain + cross_domain
     return related[:3]
 
 
@@ -358,12 +373,14 @@ def build_knowledge_card(
     research_data: dict | None,
     knowledge_root: Path,
     index_path: Path | None = None,
+    domain_override: str | None = None,
 ) -> Path:
     """Build a knowledge card from research evidence and structured answer."""
     card_summary = str(answer_data.get("answer", ""))[:500]
     routing = _infer_domain_decision(
         query, knowledge_root,
         card_title=query, card_summary=card_summary,
+        domain_override=domain_override,
     )
     major_domain = str(routing["major_domain"])
     topic = str(routing.get("subdomain", "")).strip()
@@ -372,6 +389,11 @@ def build_knowledge_card(
     slug = safe_slug(query)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     source_urls = collect_source_urls(research_data)
+    # Also accept sources from answer_data (for save_research without research_data)
+    if not source_urls:
+        ans_sources = answer_data.get("sources") or answer_data.get("source_refs") or []
+        if isinstance(ans_sources, list):
+            source_urls = [str(s) for s in ans_sources if s]
 
     # Extract structured content — answer_data itself is the structured dict
     main_answer = answer_data.get("answer", str(answer_data))
@@ -621,7 +643,7 @@ def build_knowledge_card(
     # --- See Also (always present) ---
     lines.extend(["## See Also", ""])
     _idx = index_path if index_path is not None else DEFAULT_INDEX
-    related = check_contradictions(query, claims, _idx)
+    related = check_contradictions(query, claims, _idx, current_domain=major_domain)
     if related:
         for r in related:
             lines.append(f"- [[{r['card_id']}]] — {r['title']} (similarity: {r['score']:.1f})")
